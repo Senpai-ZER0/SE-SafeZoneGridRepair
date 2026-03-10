@@ -1,4 +1,4 @@
-using Sandbox.ModAPI;
+﻿using Sandbox.ModAPI;
 using Sandbox.Game;
 using Sandbox.Game.Entities;
 using Sandbox.Game.Entities.Blocks;
@@ -36,6 +36,7 @@ namespace SafeZoneRepair
         private static readonly TimeSpan gridCheckInterval = TimeSpan.FromSeconds(1);
 		private TimeSpan _lastClientHudVisibilityCheck = TimeSpan.Zero;
 		private static readonly TimeSpan clientHudVisibilityCheckInterval = TimeSpan.FromMilliseconds(200);
+        private static readonly TimeSpan estimatedRepairCostCacheInterval = TimeSpan.FromMilliseconds(750);
 
         private bool initialized = false;
         private float weldingSpeed = 3f;
@@ -72,10 +73,21 @@ namespace SafeZoneRepair
         // Защита на сервере для статусных сообщений
         private Dictionary<long, string> _lastPlayerStatusText = new Dictionary<long, string>();
         private Dictionary<long, DateTime> _lastPlayerStatusTime = new Dictionary<long, DateTime>();
+        private Dictionary<long, EstimatedRepairCostCacheEntry> _estimatedRepairCostCache = new Dictionary<long, EstimatedRepairCostCacheEntry>();
 
         // Флаг для предотвращения повторной регистрации обработчиков на клиенте
         private static bool _clientHandlersRegistered = false;
-        private RepairUiStateMessage _clientUiState = new RepairUiStateMessage { InRepairZone = false, ZoneName = "Repair Zone", RepairEnabled = false, StatusText = "Waiting for zone state", LastRepairText = "No repairs performed yet." };
+        private RepairUiStateMessage _clientUiState = new RepairUiStateMessage { InRepairZone = false, ZoneName = "Repair Zone", RepairEnabled = false, StatusText = "Waiting for zone state", LastRepairText = "No repairs performed yet.", EstimatedRepairCost = 0 };
+
+        private sealed class EstimatedRepairCostCacheEntry
+        {
+            public long GridEntityId;
+            public long ZoneEntityId;
+            public bool InRepairZone;
+            public bool RepairEnabled;
+            public DateTime CachedAtUtc;
+            public long EstimatedRepairCost;
+        }
 
         // --- Загрузка и выгрузка ---
         public override void LoadData()
@@ -153,6 +165,7 @@ namespace SafeZoneRepair
                 _completedBlockKeys.Clear();
                 _lastPlayerStatusText.Clear();
                 _lastPlayerStatusTime.Clear();
+                _estimatedRepairCostCache.Clear();
             }
             catch (Exception ex)
             {
@@ -345,6 +358,7 @@ namespace SafeZoneRepair
 
             bool current = GetGridRepairSetting(grid);
             SetGridRepairSetting(grid, !current);
+            InvalidateEstimatedRepairCostCache(player?.IdentityId ?? 0, grid.EntityId);
             if (current)
             {
                 RemoveGridFromQueue(grid);
@@ -899,6 +913,103 @@ namespace SafeZoneRepair
             return 0;
         }
 
+        private void InvalidateEstimatedRepairCostCache(long playerId = 0, long gridEntityId = 0)
+        {
+            if (playerId == 0 && gridEntityId == 0)
+            {
+                _estimatedRepairCostCache.Clear();
+                return;
+            }
+
+            if (playerId != 0)
+            {
+                EstimatedRepairCostCacheEntry cached;
+                if (_estimatedRepairCostCache.TryGetValue(playerId, out cached) &&
+                    (gridEntityId == 0 || cached.GridEntityId == gridEntityId))
+                {
+                    _estimatedRepairCostCache.Remove(playerId);
+                }
+
+                return;
+            }
+
+            var playersToInvalidate = new List<long>();
+            foreach (var pair in _estimatedRepairCostCache)
+            {
+                if (pair.Value.GridEntityId == gridEntityId)
+                    playersToInvalidate.Add(pair.Key);
+            }
+
+            foreach (var cachedPlayerId in playersToInvalidate)
+                _estimatedRepairCostCache.Remove(cachedPlayerId);
+        }
+
+        private long GetEstimatedRepairCostForUi(IMyPlayer player, bool inRepairZone, IMyCubeGrid grid, MySafeZone zone, bool repairEnabled)
+        {
+            if (player == null || grid == null || !inRepairZone || !repairEnabled)
+                return 0;
+
+            SafeZoneConfig zoneCfg = null;
+            if (zone != null)
+                zoneConfigs.TryGetValue(zone.EntityId, out zoneCfg);
+
+            if (zoneCfg != null && !zoneCfg.Enabled)
+                return 0;
+
+            long playerId = player.IdentityId;
+            long gridEntityId = grid.EntityId;
+            long zoneEntityId = zone?.EntityId ?? 0;
+            DateTime now = DateTime.UtcNow;
+
+            EstimatedRepairCostCacheEntry cached;
+            if (_estimatedRepairCostCache.TryGetValue(playerId, out cached) &&
+                cached.GridEntityId == gridEntityId &&
+                cached.ZoneEntityId == zoneEntityId &&
+                cached.InRepairZone == inRepairZone &&
+                cached.RepairEnabled == repairEnabled &&
+                now - cached.CachedAtUtc < estimatedRepairCostCacheInterval)
+            {
+                return cached.EstimatedRepairCost;
+            }
+
+            long estimatedRepairCost = CalculateEstimatedRepairCost(grid, zoneCfg);
+            _estimatedRepairCostCache[playerId] = new EstimatedRepairCostCacheEntry
+            {
+                GridEntityId = gridEntityId,
+                ZoneEntityId = zoneEntityId,
+                InRepairZone = inRepairZone,
+                RepairEnabled = repairEnabled,
+                CachedAtUtc = now,
+                EstimatedRepairCost = estimatedRepairCost
+            };
+
+            return estimatedRepairCost;
+        }
+
+        private long CalculateEstimatedRepairCost(IMyCubeGrid grid, SafeZoneConfig zoneCfg)
+        {
+            if (grid == null)
+                return 0;
+
+            long totalCost = 0;
+            var blocks = new List<IMySlimBlock>();
+            grid.GetBlocks(blocks);
+
+            foreach (var block in blocks)
+            {
+                if (block == null || Utils.IsProjected(block) || !Utils.NeedRepair(block, false))
+                    continue;
+
+                float blockCost = CalculateTotalRepairCost(block, zoneCfg);
+                if (blockCost <= 0)
+                    continue;
+
+                totalCost += (long)blockCost;
+            }
+
+            return totalCost;
+        }
+
         // --- Основной метод ремонта ---
         private void ApplyIncrementalRepair(IMySlimBlock block)
         {
@@ -1124,6 +1235,7 @@ namespace SafeZoneRepair
         {
             try
             {
+                InvalidateEstimatedRepairCostCache(ownerId, block?.CubeGrid?.EntityId ?? 0);
                 string blockKey = $"{block.CubeGrid.EntityId}:{block.Position}";
                 if (complete && _completedBlockKeys.Contains(blockKey))
                     return; // уже отправляли уведомление об этом блоке
@@ -1219,16 +1331,19 @@ namespace SafeZoneRepair
                 zoneConfigs.TryGetValue(zone.EntityId, out cfg);
 
             string zoneName = cfg?.DisplayName ?? cfg?.ZoneName ?? GetSafeZoneDefaultName(zone);
+            bool repairEnabled = grid != null && GetGridRepairSetting(grid);
+            long estimatedRepairCost = GetEstimatedRepairCostForUi(player, inRepairZone, grid, zone, repairEnabled);
 
             var msg = new RepairUiStateMessage
             {
                 PlayerId = player.IdentityId,
                 InRepairZone = inRepairZone,
                 ZoneName = zoneName,
-                RepairEnabled = grid != null && GetGridRepairSetting(grid),
+                RepairEnabled = repairEnabled,
                 StatusText = string.IsNullOrWhiteSpace(statusText) ? (inRepairZone ? "Entered repair zone" : "Outside repair zone") : statusText,
                 LastRepairText = string.IsNullOrWhiteSpace(lastRepairText) ? _clientUiState.LastRepairText : lastRepairText,
-                LastEventUtcTicks = DateTime.UtcNow.Ticks
+                LastEventUtcTicks = DateTime.UtcNow.Ticks,
+                EstimatedRepairCost = estimatedRepairCost
             };
 
             byte[] bytes = MyAPIGateway.Utilities.SerializeToBinary(msg);
@@ -1263,6 +1378,7 @@ namespace SafeZoneRepair
             blocksRepairQueue.Clear();
             blocksInQueue.Clear();
             blockRepairInfo.Clear();
+            _estimatedRepairCostCache.Clear();
             LogGeneral("Repair queue cleared");
         }
 

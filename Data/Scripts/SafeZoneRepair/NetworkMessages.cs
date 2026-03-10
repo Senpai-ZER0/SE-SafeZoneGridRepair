@@ -1,4 +1,4 @@
-using ProtoBuf;
+﻿using ProtoBuf;
 using VRageMath; // для Vector3I
 
 namespace SafeZoneRepair
@@ -41,6 +41,8 @@ namespace SafeZoneRepair
         [ProtoMember(5)] public string StatusText;
         [ProtoMember(6)] public string LastRepairText;
         [ProtoMember(7)] public long LastEventUtcTicks;
+        [ProtoMember(8)] public long EstimatedRepairCost;
     }
 
 }
+

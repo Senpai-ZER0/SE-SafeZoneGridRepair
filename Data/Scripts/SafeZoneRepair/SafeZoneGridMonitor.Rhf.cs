@@ -1,4 +1,4 @@
-using System;
+﻿using System;
 using Sandbox.ModAPI;
 using RichHudFramework.Client;
 using RichHudFramework.UI;
@@ -52,8 +52,8 @@ namespace SafeZoneRepair
                 "Zone: -",
                 "Repair mode: -",
                 "Status: Waiting for zone state",
-                "Last repair: No repairs performed yet.",
-                string.Empty
+                "Estimated cost: 0 SC",
+                "Last repair: No repairs performed yet."
             );
         }
 
@@ -160,7 +160,7 @@ namespace SafeZoneRepair
             };
         }
 
-        private void SetHudLines(string title, string zone, string mode, string status, string repair, string hint)
+        private void SetHudLines(string title, string zone, string mode, string status, string cost, string repair)
         {
             if (_titleLabel != null)
                 _titleLabel.Text = title ?? string.Empty;
@@ -175,10 +175,10 @@ namespace SafeZoneRepair
                 _statusLabel.Text = status ?? string.Empty;
 
             if (_repairLabel != null)
-                _repairLabel.Text = repair ?? string.Empty;
+                _repairLabel.Text = cost ?? string.Empty;
 
             if (_hintLabel != null)
-                _hintLabel.Text = hint ?? string.Empty;
+                _hintLabel.Text = repair ?? string.Empty;
         }
 
         private void UpdateRichHudState(RepairUiStateMessage state)
@@ -220,17 +220,16 @@ namespace SafeZoneRepair
 			else
 				repairText = FormatLastRepair(_stickyLastRepairText);
 
-			string hintText = state.RepairEnabled
-				? "Use terminal or toolbar to toggle repair mode."
-				: "Repair mode is disabled for this grid.";
+            long estimatedRepairCost = state.EstimatedRepairCost < 0 ? 0 : state.EstimatedRepairCost;
+            string costText = string.Format("Estimated cost: {0} SC", estimatedRepairCost);
 
 			SetHudLines(
 				"Safe Zone Repair",
 				"Zone: " + zoneName,
 				modeText,
 				statusText,
-				repairText,
-				hintText
+                costText,
+                repairText
 			);
 
 			if (_modeLabel != null)
@@ -256,7 +255,7 @@ namespace SafeZoneRepair
 				_repairLabel.Format = new GlyphFormat(new Color(210, 225, 240), TextAlignment.Left, 0.84f);
 
 			if (_hintLabel != null)
-				_hintLabel.Format = new GlyphFormat(new Color(140, 190, 255), TextAlignment.Left, 0.78f);
+                _hintLabel.Format = new GlyphFormat(new Color(210, 225, 240), TextAlignment.Left, 0.78f);
 		}
 
         private void HideHud()
