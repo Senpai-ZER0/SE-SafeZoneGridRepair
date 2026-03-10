@@ -190,6 +190,7 @@ namespace SafeZoneRepair
 
 			if (!state.InRepairZone)
 			{
+                _manualHudRequested = false;
 				HideHud();
 				return;
 			}
@@ -274,7 +275,7 @@ namespace SafeZoneRepair
         {
             try
             {
-                return GetLocalControlledShipController() != null;
+                return GetLocalControlledShipController() != null || IsManualHudAllowed();
             }
             catch
             {

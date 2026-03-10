@@ -78,6 +78,8 @@ namespace SafeZoneRepair
         // Флаг для предотвращения повторной регистрации обработчиков на клиенте
         private static bool _clientHandlersRegistered = false;
         private RepairUiStateMessage _clientUiState = new RepairUiStateMessage { InRepairZone = false, ZoneName = "Repair Zone", RepairEnabled = false, StatusText = "Waiting for zone state", LastRepairText = "No repairs performed yet.", EstimatedRepairCost = 0 };
+        private Dictionary<long, long> _lastControlledGridByPlayer = new Dictionary<long, long>();
+        private bool _manualHudRequested = false;
 
         private sealed class EstimatedRepairCostCacheEntry
         {
@@ -166,6 +168,8 @@ namespace SafeZoneRepair
                 _lastPlayerStatusText.Clear();
                 _lastPlayerStatusTime.Clear();
                 _estimatedRepairCostCache.Clear();
+                _lastControlledGridByPlayer.Clear();
+                _manualHudRequested = false;
             }
             catch (Exception ex)
             {
@@ -527,6 +531,46 @@ namespace SafeZoneRepair
             return GetControlledShipController(player);
         }
 
+        private bool IsManualHudAllowed()
+        {
+            return _manualHudRequested && _clientUiState != null && _clientUiState.InRepairZone;
+        }
+
+        private MySafeZone GetSafeZoneForPosition(Vector3D position)
+        {
+            foreach (var zone in safeZones)
+            {
+                Vector3D center = zone.PositionComp.WorldAABB.Center;
+                if (Vector3D.Distance(center, position) <= zone.Radius)
+                    return zone;
+            }
+
+            return null;
+        }
+
+        private IMyCubeGrid GetLastKnownGridForPlayer(IMyPlayer player, MySafeZone zone)
+        {
+            if (player == null)
+                return null;
+
+            long gridEntityId;
+            if (!_lastControlledGridByPlayer.TryGetValue(player.IdentityId, out gridEntityId))
+                return null;
+
+            IMyEntity entity;
+            if (!MyAPIGateway.Entities.TryGetEntityById(gridEntityId, out entity))
+                return null;
+
+            var grid = entity as IMyCubeGrid;
+            if (grid == null)
+                return null;
+
+            if (zone != null && !IsGridInSafeZone(grid, zone))
+                return null;
+
+            return grid;
+        }
+
         private void UpdateClientHudVisibility()
         {
             try
@@ -549,17 +593,24 @@ namespace SafeZoneRepair
 
                 if (_clientUiState == null || !_clientUiState.InRepairZone)
                 {
+                    _manualHudRequested = false;
                     HideHud();
                     return;
                 }
 
-                if (GetLocalControlledShipController() == null)
+                if (GetLocalControlledShipController() != null)
                 {
-                    HideHud();
+                    ShowHud();
                     return;
                 }
 
-                ShowHud();
+                if (IsManualHudAllowed())
+                {
+                    ShowHud();
+                    return;
+                }
+
+                HideHud();
             }
             catch (Exception ex)
             {
@@ -652,38 +703,65 @@ namespace SafeZoneRepair
                 if (shipController != null)
                 {
                     IMyCubeGrid grid = shipController.CubeGrid;
-                    if (grid != null)
-                    {
-                        if (!GetGridRepairSetting(grid))
-                        {
-                            LogZone($"Grid {grid.DisplayName} has repairs disabled, skipping");
-                            if (gridsInSafeZone.Contains(grid))
-                            {
-                                gridsInSafeZone.Remove(grid);
-                                LogZone($"Grid {grid.DisplayName} removed from repair list (disabled)");
-                            }
-                            continue;
-                        }
+                    if (grid == null)
+                        continue;
 
-                        bool inAnySafeZone = false;
-                        foreach (MySafeZone zone in safeZones)
-                        {
-                            if (IsGridInSafeZone(grid, zone))
-                            {
-                                inAnySafeZone = true;
-                                HandleGridInSafeZone(grid, player.IdentityId);
-                                SendRepairUiStateToPlayer(player, true, grid, zone, "Entered repair zone");
-                            }
-                        }
-                        if (!inAnySafeZone && gridsInSafeZone.Contains(grid))
+                    _lastControlledGridByPlayer[player.IdentityId] = grid.EntityId;
+
+                    bool repairEnabled = GetGridRepairSetting(grid);
+                    if (!repairEnabled)
+                    {
+                        LogZone($"Grid {grid.DisplayName} has repairs disabled, skipping repair pass");
+                        if (gridsInSafeZone.Contains(grid))
                         {
                             gridsInSafeZone.Remove(grid);
-                            LogZone($"Grid {grid.DisplayName} left safe zone");
+                            LogZone($"Grid {grid.DisplayName} removed from repair list (disabled)");
                         }
-
-                        if (!inAnySafeZone)
-                            SendRepairUiStateToPlayer(player, false, grid, null, "Outside repair zone");
                     }
+
+                    bool inAnySafeZone = false;
+                    foreach (MySafeZone zone in safeZones)
+                    {
+                        if (IsGridInSafeZone(grid, zone))
+                        {
+                            inAnySafeZone = true;
+                            if (repairEnabled)
+                                HandleGridInSafeZone(grid, player.IdentityId);
+
+                            string statusText = repairEnabled ? "Entered repair zone" : "Repair disabled for your ship";
+                            SendRepairUiStateToPlayer(player, true, grid, zone, statusText);
+                        }
+                    }
+
+                    if (!inAnySafeZone && gridsInSafeZone.Contains(grid))
+                    {
+                        gridsInSafeZone.Remove(grid);
+                        LogZone($"Grid {grid.DisplayName} left safe zone");
+                    }
+
+                    if (!inAnySafeZone)
+                        SendRepairUiStateToPlayer(player, false, grid, null, "Outside repair zone");
+
+                    continue;
+                }
+
+                var character = player.Character;
+                if (character == null)
+                {
+                    SendRepairUiStateToPlayer(player, false, null, null, "Outside repair zone");
+                    continue;
+                }
+
+                MySafeZone playerZone = GetSafeZoneForPosition(character.GetPosition());
+                if (playerZone != null)
+                {
+                    IMyCubeGrid lastGrid = GetLastKnownGridForPlayer(player, playerZone);
+                    string statusText = lastGrid != null ? "Viewing repair zone" : "In repair zone";
+                    SendRepairUiStateToPlayer(player, true, lastGrid, playerZone, statusText);
+                }
+                else
+                {
+                    SendRepairUiStateToPlayer(player, false, null, null, "Outside repair zone");
                 }
             }
         }
@@ -963,7 +1041,7 @@ namespace SafeZoneRepair
 
         private long GetEstimatedRepairCostForUi(IMyPlayer player, bool inRepairZone, IMyCubeGrid grid, MySafeZone zone, bool repairEnabled)
         {
-            if (player == null || grid == null || !inRepairZone || !repairEnabled)
+            if (player == null || grid == null || !inRepairZone)
                 return 0;
 
             SafeZoneConfig zoneCfg = null;
@@ -1402,15 +1480,41 @@ namespace SafeZoneRepair
         // --- Обработка чат-команд ---
         private void Utilities_MessageEntered(string messageText, ref bool sendToOthers)
         {
-            if (!MyAPIGateway.Multiplayer.IsServer) return;
             if (!messageText.StartsWith("/")) return;
+
+            string[] parts = messageText.Trim().Split(' ');
+            string command = parts[0].ToLower();
+
+            if (command == "/szhud")
+            {
+                sendToOthers = false;
+
+                if (_clientUiState == null || !_clientUiState.InRepairZone)
+                {
+                    _manualHudRequested = false;
+                    HideHud();
+                    return;
+                }
+
+                _manualHudRequested = !_manualHudRequested;
+                if (!_manualHudRequested)
+                {
+                    HideHud();
+                }
+                else
+                {
+                    UpdateRichHudState(_clientUiState);
+                    UpdateClientHudVisibility();
+                }
+
+                return;
+            }
+
+            if (!MyAPIGateway.Multiplayer.IsServer) return;
 
             sendToOthers = false;
 
             MyLog.Default.WriteLine($"[SafeZoneRepair] Command received: '{messageText}'");
-
-            string[] parts = messageText.Trim().Split(' ');
-            string command = parts[0].ToLower();
 
             if (command == "/szreload")
             {
