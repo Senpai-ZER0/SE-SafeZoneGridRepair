@@ -431,11 +431,11 @@ namespace SafeZoneRepair
         {
             try
             {
-                var cockpits = new List<IMyCockpit>();
-                MyAPIGateway.TerminalActionsHelper.GetTerminalSystemForGrid(grid).GetBlocksOfType(cockpits);
-                if (cockpits.Count > 0)
+                var shipControllers = new List<IMyShipController>();
+                MyAPIGateway.TerminalActionsHelper.GetTerminalSystemForGrid(grid).GetBlocksOfType(shipControllers);
+                if (shipControllers.Count > 0)
                 {
-                    var data = cockpits[0].CustomData;
+                    var data = shipControllers[0].CustomData;
                     if (data.Contains("AllowRepairsInSafeZones:"))
                     {
                         var lines = data.Split('\n');
@@ -462,14 +462,14 @@ namespace SafeZoneRepair
         {
             try
             {
-                var cockpits = new List<IMyCockpit>();
-                MyAPIGateway.TerminalActionsHelper.GetTerminalSystemForGrid(grid).GetBlocksOfType(cockpits);
-                if (cockpits.Count > 0)
+                var shipControllers = new List<IMyShipController>();
+                MyAPIGateway.TerminalActionsHelper.GetTerminalSystemForGrid(grid).GetBlocksOfType(shipControllers);
+                if (shipControllers.Count > 0)
                 {
-                    var cockpit = cockpits[0];
+                    var shipController = shipControllers[0];
                     var data = new StringBuilder();
                     data.AppendLine($"AllowRepairsInSafeZones:{value}");
-                    cockpit.CustomData = data.ToString();
+                    shipController.CustomData = data.ToString();
                 }
             }
             catch (Exception ex)
@@ -506,65 +506,82 @@ namespace SafeZoneRepair
         }
 		
 		
-		private void UpdateClientHudVisibility()
-		{
-			try
-			{
-				if (MyAPIGateway.Utilities == null || MyAPIGateway.Utilities.IsDedicated)
-					return;
 
-				if (!_richHudReady)
-					return;
+        private IMyShipController GetControlledShipController(IMyPlayer player)
+        {
+            if (player?.Controller == null)
+                return null;
 
-				var session = MyAPIGateway.Session;
-				if (session == null)
-					return;
+            var shipController = player.Controller.ControlledEntity as IMyShipController;
+            if (shipController != null && shipController.CubeGrid != null)
+                return shipController;
 
-				TimeSpan now = session.ElapsedPlayTime;
-				if (now - _lastClientHudVisibilityCheck < clientHudVisibilityCheckInterval)
-					return;
+            shipController = player.Controller.ControlledEntity?.Entity as IMyShipController;
+            return shipController != null && shipController.CubeGrid != null ? shipController : null;
+        }
 
-				_lastClientHudVisibilityCheck = now;
+        private IMyShipController GetLocalControlledShipController()
+        {
+            var session = MyAPIGateway.Session;
+            var player = session?.Player ?? session?.LocalHumanPlayer;
+            return GetControlledShipController(player);
+        }
 
-				if (_clientUiState == null || !_clientUiState.InRepairZone)
-				{
-					HideHud();
-					return;
-				}
+        private void UpdateClientHudVisibility()
+        {
+            try
+            {
+                if (MyAPIGateway.Utilities == null || MyAPIGateway.Utilities.IsDedicated)
+                    return;
 
-				var player = session.Player;
-				var controlledEntity = player?.Controller?.ControlledEntity?.Entity;
-				var shipController = controlledEntity as IMyShipController;
+                if (!_richHudReady)
+                    return;
 
-				if (shipController == null || shipController.CubeGrid == null)
-				{
-					HideHud();
-					return;
-				}
+                var session = MyAPIGateway.Session;
+                if (session == null)
+                    return;
 
-				ShowHud();
-			}
-			catch (Exception ex)
-			{
-				LogError($"UpdateClientHudVisibility error: {ex}");
-			}
-		}
+                TimeSpan now = session.ElapsedPlayTime;
+                if (now - _lastClientHudVisibilityCheck < clientHudVisibilityCheckInterval)
+                    return;
+
+                _lastClientHudVisibilityCheck = now;
+
+                if (_clientUiState == null || !_clientUiState.InRepairZone)
+                {
+                    HideHud();
+                    return;
+                }
+
+                if (GetLocalControlledShipController() == null)
+                {
+                    HideHud();
+                    return;
+                }
+
+                ShowHud();
+            }
+            catch (Exception ex)
+            {
+                LogError($"UpdateClientHudVisibility error: {ex}");
+            }
+        }
         // --- Основной цикл обновления ---
         public override void UpdateAfterSimulation()
-		{
-			if (!MyAPIGateway.Multiplayer.IsServer)
-			{
-				UpdateClientHudVisibility();
-				return;
-			}
+        {
+            if (MyAPIGateway.Utilities != null && !MyAPIGateway.Utilities.IsDedicated)
+                UpdateClientHudVisibility();
 
-			if (!initialized)
-			{
-				InitializeSafeZones();
-				initialized = true;
-				if (!MyAPIGateway.Utilities.FileExistsInWorldStorage(ConfigFileName, typeof(SafeZoneGridMonitor)))
-					SaveDefaultConfig();
-			}
+            if (!MyAPIGateway.Multiplayer.IsServer)
+                return;
+
+            if (!initialized)
+            {
+                InitializeSafeZones();
+                initialized = true;
+                if (!MyAPIGateway.Utilities.FileExistsInWorldStorage(ConfigFileName, typeof(SafeZoneGridMonitor)))
+                    SaveDefaultConfig();
+            }
 
             if (deltaTimer != null)
             {
@@ -631,10 +648,10 @@ namespace SafeZoneRepair
             MyAPIGateway.Players.GetPlayers(players);
             foreach (IMyPlayer player in players)
             {
-                IMyCockpit cockpit = player.Controller?.ControlledEntity?.Entity as IMyCockpit;
-                if (cockpit != null)
+                IMyShipController shipController = GetControlledShipController(player);
+                if (shipController != null)
                 {
-                    IMyCubeGrid grid = cockpit.CubeGrid;
+                    IMyCubeGrid grid = shipController.CubeGrid;
                     if (grid != null)
                     {
                         if (!GetGridRepairSetting(grid))
@@ -1448,9 +1465,8 @@ namespace SafeZoneRepair
             MyAPIGateway.Players.GetPlayers(players);
             foreach (var player in players)
             {
-                var controlled = player.Controller?.ControlledEntity?.Entity;
-                var cockpit = controlled as IMyCockpit;
-                if (cockpit != null && cockpit.CubeGrid == grid)
+                var shipController = GetControlledShipController(player);
+                if (shipController != null && shipController.CubeGrid == grid)
                     return player;
             }
             return null;
@@ -1462,7 +1478,6 @@ namespace SafeZoneRepair
 
             text = text.Trim();
 
-            // Защита от повторной отправки одинакового сообщения одному игроку (не чаще 1 раза в 5 секунд)
             if (_lastPlayerStatusText.ContainsKey(player.IdentityId))
             {
                 if (_lastPlayerStatusText[player.IdentityId] == text && (DateTime.Now - _lastPlayerStatusTime[player.IdentityId]).TotalSeconds < 5)
@@ -1473,14 +1488,15 @@ namespace SafeZoneRepair
 
             LogGeneral($"Sending terminal status to player {player.IdentityId}: '{text}'");
 
-            // Если это локальный игрок (в одиночной игре), показываем уведомление напрямую
-            if (MyAPIGateway.Session.LocalHumanPlayer != null && player.SteamUserId == MyAPIGateway.Session.LocalHumanPlayer.SteamUserId)
-            {
-                MyAPIGateway.Utilities.ShowNotification(text, time, color);
-                return;
-            }
             var msg = new TerminalStatusMessage { Text = text, Color = color, Time = time, PlayerId = player.IdentityId };
             byte[] data = MyAPIGateway.Utilities.SerializeToBinary(msg);
+
+            if (MyAPIGateway.Session?.LocalHumanPlayer != null && player.SteamUserId == MyAPIGateway.Session.LocalHumanPlayer.SteamUserId)
+            {
+                HandleTerminalStatus(data);
+                return;
+            }
+
             if (MyAPIGateway.Multiplayer.IsServer)
             {
                 ulong steamId = player.SteamUserId;
@@ -1491,6 +1507,7 @@ namespace SafeZoneRepair
                 MyAPIGateway.Multiplayer.SendMessageToServer(TerminalStatusSyncId, data);
             }
         }
+
 
         private void HandleTerminalStatus(byte[] data)
 		{
@@ -1538,3 +1555,4 @@ namespace SafeZoneRepair
         public static readonly object AdminIgnore = 0x37E;
     }
 }
+

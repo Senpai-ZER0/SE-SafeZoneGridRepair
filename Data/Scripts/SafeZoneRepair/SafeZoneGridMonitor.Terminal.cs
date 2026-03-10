@@ -1,4 +1,4 @@
-using Sandbox.ModAPI;
+﻿using Sandbox.ModAPI;
 using Sandbox.ModAPI.Interfaces.Terminal;
 using System;
 using System.Text;
@@ -26,7 +26,7 @@ namespace SafeZoneRepair
 
             try
             {
-                var toggleAction = MyAPIGateway.TerminalControls.CreateAction<IMyCockpit>("ToggleRepairInSafeZones");
+                var toggleAction = MyAPIGateway.TerminalControls.CreateAction<IMyShipController>("ToggleRepairInSafeZones");
                 toggleAction.Name = new StringBuilder("Toggle repair in safe zones");
                 toggleAction.Icon = @"Textures\GUI\Icons\Actions\SwitchOnOff.dds";
                 toggleAction.Action = (block) =>
@@ -34,9 +34,9 @@ namespace SafeZoneRepair
                     if (block?.CubeGrid != null)
                         ToggleRepair(block.CubeGrid);
                 };
-                MyAPIGateway.TerminalControls.AddAction<IMyCockpit>(toggleAction);
+                MyAPIGateway.TerminalControls.AddAction<IMyShipController>(toggleAction);
 
-                var statusAction = MyAPIGateway.TerminalControls.CreateAction<IMyCockpit>("ShowRepairStatus");
+                var statusAction = MyAPIGateway.TerminalControls.CreateAction<IMyShipController>("ShowRepairStatus");
                 statusAction.Name = new StringBuilder("Show repair status");
                 statusAction.Icon = @"Textures\GUI\Icons\Actions\Info.dds";
                 statusAction.Action = (block) =>
@@ -44,7 +44,7 @@ namespace SafeZoneRepair
                     if (block?.CubeGrid != null)
                         ShowRepairStatus(block.CubeGrid);
                 };
-                MyAPIGateway.TerminalControls.AddAction<IMyCockpit>(statusAction);
+                MyAPIGateway.TerminalControls.AddAction<IMyShipController>(statusAction);
             }
             catch (Exception ex)
             {

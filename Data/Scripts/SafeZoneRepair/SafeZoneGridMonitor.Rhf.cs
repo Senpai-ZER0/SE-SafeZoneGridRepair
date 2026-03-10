@@ -270,20 +270,17 @@ namespace SafeZoneRepair
                 _panel.Visible = true;
         }
 		
-		private bool ShouldShowHudForLocalPlayer()
-		{
-			try
-			{
-				var player = MyAPIGateway.Session?.Player;
-				var controlledEntity = player?.Controller?.ControlledEntity?.Entity;
-				var shipController = controlledEntity as IMyShipController;
-				return shipController != null && shipController.CubeGrid != null;
-			}
-			catch
-			{
-				return false;
-			}
-		}
+        private bool ShouldShowHudForLocalPlayer()
+        {
+            try
+            {
+                return GetLocalControlledShipController() != null;
+            }
+            catch
+            {
+                return false;
+            }
+        }
 		
 		private string TruncateText(string text, int maxLength)
 		{
@@ -305,3 +302,4 @@ namespace SafeZoneRepair
 		}
     }
 }
+
