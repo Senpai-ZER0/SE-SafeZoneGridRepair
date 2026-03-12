@@ -87,6 +87,7 @@ namespace SafeZoneRepair
         private bool _cockpitInteractiveRequested = false;
         private static readonly MyKeys HudToggleKey = MyKeys.J;
         private static readonly MyKeys RepairToggleKey = MyKeys.R;
+        private static readonly MyKeys CockpitHudSuppressKey = MyKeys.N;
 
         private static bool _rhfBindsRegistered = false;
         private static bool _rhfTerminalPagesRegistered = false;
@@ -566,12 +567,52 @@ namespace SafeZoneRepair
 
         private bool IsCockpitHudVisible()
         {
-            return true;
+            return !_cockpitHudSuppressed;
         }
 
         private bool IsCockpitInteractiveHudRequested()
         {
             return _cockpitInteractiveRequested;
+        }
+
+        private bool IsCockpitHudSuppressHotkeyPressed()
+        {
+            var input = MyAPIGateway.Input;
+            return input != null && input.IsAnyCtrlKeyPressed() && input.IsNewKeyPressed(CockpitHudSuppressKey);
+        }
+
+        private void ToggleCockpitHudVisibilityForLocalContext()
+        {
+            try
+            {
+                if (MyAPIGateway.Utilities == null || MyAPIGateway.Utilities.IsDedicated)
+                    return;
+
+                var shipController = GetLocalControlledShipController();
+                if (shipController?.CubeGrid == null)
+                    return;
+
+                _cockpitHudSuppressed = !_cockpitHudSuppressed;
+
+                if (_cockpitHudSuppressed)
+                {
+                    _cockpitInteractiveRequested = false;
+                    SetInteractiveCursorEnabled(false);
+                    HideHud();
+                }
+                else if (_clientUiState != null)
+                {
+                    UpdateRichHudState(_clientUiState);
+                }
+                else
+                {
+                    ShowHud();
+                }
+            }
+            catch (Exception ex)
+            {
+                LogError($"ToggleCockpitHudVisibilityForLocalContext error: {ex}");
+            }
         }
 
         private void SetInteractiveCursorEnabled(bool enabled)
@@ -623,9 +664,13 @@ namespace SafeZoneRepair
                     if (sourceGrid != null && shipController.CubeGrid.EntityId != sourceGrid.EntityId)
                         return;
 
+                    if (_cockpitHudSuppressed)
+                    {
+                        _cockpitHudSuppressed = false;
+                    }
+
                     _cockpitInteractiveRequested = !_cockpitInteractiveRequested;
                     _manualHudRequested = false;
-                    _cockpitHudSuppressed = false;
                     SetInteractiveCursorEnabled(_cockpitInteractiveRequested);
 
                     if (_clientUiState != null)
@@ -730,7 +775,7 @@ namespace SafeZoneRepair
                     };
                     _rhfOverviewPage.HeaderText = new RichText("Safe Zone Repair");
                     _rhfOverviewPage.SubHeaderText = new RichText("RHF controls and bindable actions");
-                    _rhfOverviewPage.Text = new RichText("Ctrl+J toggles the repair HUD.\nCtrl+R toggles repair mode only while controlling a ship controller.\nCockpit toolbar actions remain available for HUD, status and repair mode.\nYou can rebind the RHF hotkeys on the Keybinds page.");
+                    _rhfOverviewPage.Text = new RichText("Ctrl+J toggles the repair HUD.\nCtrl+R toggles repair mode only while controlling a ship controller.\nCtrl+N hides or restores the cockpit HUD.\nCockpit toolbar actions remain available for HUD and repair mode.");
 
                     _rhfKeybindPage = new RebindPage
                     {
@@ -820,6 +865,9 @@ namespace SafeZoneRepair
                 if (MyAPIGateway.Gui.IsCursorVisible && !IsCockpitInteractiveHudRequested())
                     return;
 
+                if (GetLocalControlledShipController() != null && IsCockpitHudSuppressHotkeyPressed())
+                    ToggleCockpitHudVisibilityForLocalContext();
+
                 if (IsHudHotkeyPressed())
                     ToggleHudForLocalContext();
 
@@ -890,7 +938,6 @@ namespace SafeZoneRepair
                 if (_clientUiState == null || !_clientUiState.InRepairZone)
                 {
                     _manualHudRequested = false;
-                    _cockpitHudSuppressed = false;
                     _cockpitInteractiveRequested = false;
                     SetInteractiveCursorEnabled(false);
                     HideHud();
@@ -899,7 +946,14 @@ namespace SafeZoneRepair
 
                 if (GetLocalControlledShipController() != null)
                 {
-                    _cockpitHudSuppressed = false;
+                    if (_cockpitHudSuppressed)
+                    {
+                        _cockpitInteractiveRequested = false;
+                        SetInteractiveCursorEnabled(false);
+                        HideHud();
+                        return;
+                    }
+
                     SetInteractiveCursorEnabled(_cockpitInteractiveRequested);
                     ShowHud();
                     return;
@@ -1809,23 +1863,9 @@ namespace SafeZoneRepair
                 }
 
                 string blockName = TruncateHudBlockName(Utils.BlockName(queuedBlock), 32);
-                bool queuedHasBuildWork = queuedBlock.MaxIntegrity - queuedBlock.BuildIntegrity > 0.01f;
-                bool queuedHasDeformation = queuedBlock.HasDeformation;
 
                 if (ahead <= 0)
-                {
-                    string phase;
-                    if (queuedHasBuildWork && queuedHasDeformation)
-                        phase = "integrity + deformation";
-                    else if (queuedHasBuildWork)
-                        phase = string.Format("integrity {0:0.0}%", queuedBlock.BuildLevelRatio * 100f);
-                    else if (queuedHasDeformation)
-                        phase = "deformation";
-                    else
-                        phase = "finishing";
-
-                    return string.Format("Current repair: {0} ({1})", blockName, phase);
-                }
+                    return string.Format("Current repair: {0}", blockName);
 
                 return string.Format("Current repair: queued ({0} ahead) -> {1}", ahead, blockName);
             }
@@ -1835,6 +1875,59 @@ namespace SafeZoneRepair
                 return "Current repair: queued / waiting for next block";
 
             return "Current repair: -";
+        }
+
+        private string BuildRepairPhaseForUi(IMyPlayer player, IMyCubeGrid grid)
+        {
+            if (player == null || grid == null)
+                return "Repair phase: idle";
+
+            int ahead = 0;
+            foreach (var queuedBlock in blocksRepairQueue)
+            {
+                if (queuedBlock == null)
+                {
+                    ahead++;
+                    continue;
+                }
+
+                BlockRepairInfo queuedInfo;
+                if (!blockRepairInfo.TryGetValue(queuedBlock, out queuedInfo))
+                {
+                    ahead++;
+                    continue;
+                }
+
+                long queuedSourceGridId = queuedInfo.SourceGridEntityId != 0 ? queuedInfo.SourceGridEntityId : (queuedBlock.CubeGrid?.EntityId ?? 0);
+                if (queuedSourceGridId != grid.EntityId)
+                {
+                    ahead++;
+                    continue;
+                }
+
+                bool queuedHasBuildWork = queuedBlock.MaxIntegrity - queuedBlock.BuildIntegrity > 0.01f;
+                bool queuedHasDeformation = queuedBlock.HasDeformation;
+
+                if (ahead <= 0)
+                {
+                    if (queuedHasBuildWork && queuedHasDeformation)
+                        return string.Format("Repair phase: integrity + deformation ({0:0.0}%)", queuedBlock.BuildLevelRatio * 100f);
+                    if (queuedHasBuildWork)
+                        return string.Format("Repair phase: integrity ({0:0.0}%)", queuedBlock.BuildLevelRatio * 100f);
+                    if (queuedHasDeformation)
+                        return "Repair phase: deformation";
+
+                    return "Repair phase: finishing";
+                }
+
+                return string.Format("Repair phase: queued ({0} ahead)", ahead);
+            }
+
+            long estimate = GetEstimatedRepairCostForUi(player, true, grid, GetSafeZoneForGrid(grid), GetGridRepairSetting(grid));
+            if (estimate > 0)
+                return "Repair phase: waiting";
+
+            return "Repair phase: idle";
         }
 
         private string TruncateHudBlockName(string text, int maxLength)
@@ -1868,7 +1961,8 @@ namespace SafeZoneRepair
                 LastRepairText = string.IsNullOrWhiteSpace(lastRepairText) ? _clientUiState.LastRepairText : lastRepairText,
                 LastEventUtcTicks = DateTime.UtcNow.Ticks,
                 EstimatedRepairCost = estimatedRepairCost,
-                CurrentRepairText = inRepairZone ? BuildCurrentRepairTextForUi(player, grid) : "Current repair: -"
+                CurrentRepairText = inRepairZone ? BuildCurrentRepairTextForUi(player, grid) : "Current repair: -",
+                RepairPhaseText = inRepairZone ? BuildRepairPhaseForUi(player, grid) : "Repair phase: idle"
             };
 
             byte[] bytes = MyAPIGateway.Utilities.SerializeToBinary(msg);
@@ -1887,6 +1981,13 @@ namespace SafeZoneRepair
                     return;
 
                 _clientUiState = msg;
+
+                if (GetLocalControlledShipController() != null && !IsCockpitHudVisible())
+                {
+                    HideHud();
+                    return;
+                }
+
                 UpdateRichHudState(msg);
             }
             catch (Exception ex)

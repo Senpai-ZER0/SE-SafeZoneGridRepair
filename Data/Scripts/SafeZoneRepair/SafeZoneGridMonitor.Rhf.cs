@@ -19,6 +19,7 @@ namespace SafeZoneRepair
         private static Label _modeLabel;
         private static Label _statusLabel;
         private static Label _currentRepairLabel;
+        private static Label _phaseLabel;
         private static Label _repairLabel;
         private static Label _hintLabel;
         private static BorderedButton _toggleRepairButton;
@@ -57,6 +58,7 @@ namespace SafeZoneRepair
                 "Repair mode: -",
                 "Status: Waiting for zone state",
                 "Current repair: -",
+                "Repair phase: idle",
                 "Estimated cost: 0 SC",
                 "Last repair: No repairs performed yet."
             );
@@ -89,6 +91,7 @@ namespace SafeZoneRepair
             _modeLabel = null;
             _statusLabel = null;
             _currentRepairLabel = null;
+            _phaseLabel = null;
             _repairLabel = null;
             _hintLabel = null;
             _toggleRepairButton = null;
@@ -117,6 +120,7 @@ namespace SafeZoneRepair
             _modeLabel = null;
             _statusLabel = null;
             _currentRepairLabel = null;
+            _phaseLabel = null;
             _repairLabel = null;
             _hintLabel = null;
             _toggleRepairButton = null;
@@ -153,12 +157,13 @@ namespace SafeZoneRepair
             _zoneLabel = CreateLabel(new Vector2(24f, -27f), new Vector2(560f, 22f), 0.88f);
             _modeLabel = CreateLabel(new Vector2(24f, -61f), new Vector2(560f, 22f), 0.88f);
             _statusLabel = CreateLabel(new Vector2(24f, -89f), new Vector2(560f, 22f), 0.88f);
-            _currentRepairLabel = CreateLabel(new Vector2(24f, -117f), new Vector2(560f, 32f), 0.80f, TextBuilderModes.Wrapped);
-            _repairLabel = CreateLabel(new Vector2(24f, -149f), new Vector2(560f, 24f), 0.84f);
-            _hintLabel = CreateLabel(new Vector2(24f, -177f), new Vector2(560f, 44f), 0.78f, TextBuilderModes.Wrapped);
+            _currentRepairLabel = CreateLabel(new Vector2(24f, -117f), new Vector2(560f, 28f), 0.80f, TextBuilderModes.Wrapped);
+            _phaseLabel = CreateLabel(new Vector2(24f, -145f), new Vector2(560f, 22f), 0.78f);
+            _repairLabel = CreateLabel(new Vector2(24f, -171f), new Vector2(560f, 24f), 0.84f);
+            _hintLabel = CreateLabel(new Vector2(24f, -199f), new Vector2(560f, 44f), 0.78f, TextBuilderModes.Wrapped);
 
-            _toggleRepairButton = CreateMenuButton(new Vector2(24f, -234f), new Vector2(170f, 36f), "Toggle repair");
-            _closeMenuButton = CreateMenuButton(new Vector2(404f, -234f), new Vector2(170f, 36f), "Close menu");
+            _toggleRepairButton = CreateMenuButton(new Vector2(24f, -254f), new Vector2(170f, 36f), "Toggle Repair");
+            _closeMenuButton = CreateMenuButton(new Vector2(404f, -254f), new Vector2(170f, 36f), "Close Menu");
 
             if (_toggleRepairButton != null)
                 _toggleRepairButton.MouseInput.LeftClicked += ToggleRepairButtonClicked;
@@ -244,7 +249,7 @@ namespace SafeZoneRepair
             }
         }
 
-        private void SetHudLines(string title, string zone, string mode, string status, string currentRepair, string cost, string repair)
+        private void SetHudLines(string title, string zone, string mode, string status, string currentRepair, string phase, string cost, string repair)
         {
             if (_titleLabel != null)
                 _titleLabel.Text = title ?? string.Empty;
@@ -260,6 +265,9 @@ namespace SafeZoneRepair
 
             if (_currentRepairLabel != null)
                 _currentRepairLabel.Text = currentRepair ?? string.Empty;
+
+            if (_phaseLabel != null)
+                _phaseLabel.Text = phase ?? string.Empty;
 
             if (_repairLabel != null)
                 _repairLabel.Text = cost ?? string.Empty;
@@ -290,6 +298,14 @@ namespace SafeZoneRepair
 				return;
 			}
 
+            if (GetLocalControlledShipController() != null && !IsCockpitHudVisible())
+            {
+                _cockpitInteractiveRequested = false;
+                SetInteractiveCursorEnabled(false);
+                HideHud();
+                return;
+            }
+
 			ShowHud();
 
             bool interactiveMenuVisible = GetLocalControlledShipController() != null && IsCockpitInteractiveHudRequested();
@@ -315,13 +331,14 @@ namespace SafeZoneRepair
 
             long estimatedRepairCost = state.EstimatedRepairCost < 0 ? 0 : state.EstimatedRepairCost;
             string currentRepairText = string.IsNullOrWhiteSpace(state.CurrentRepairText) ? "Current repair: -" : state.CurrentRepairText.Trim();
+            string phaseText = string.IsNullOrWhiteSpace(state.RepairPhaseText) ? "Repair phase: idle" : state.RepairPhaseText.Trim();
             string costText = string.Format("Estimated cost: {0} SC", estimatedRepairCost);
             if (interactiveMenuVisible)
-                repairText = string.Format("{0}\nInteractive menu active  |  Ctrl+J: Close menu  |  Ctrl+R: Repair (cockpit)", repairText);
+                repairText = string.Format("{0}\nInteractive menu active  |  Ctrl+J: Close menu  |  Ctrl+R: Repair (cockpit)  |  Ctrl+N: Hide HUD", repairText);
             else if (GetLocalControlledShipController() != null)
-                repairText = string.Format("{0}\nCtrl+J: Interactive menu  |  Ctrl+R: Repair (cockpit)  |  Toolbar actions available", repairText);
+                repairText = string.Format("{0}\nCtrl+J: Interactive menu  |  Ctrl+R: Repair (cockpit)  |  Ctrl+N: Hide HUD", repairText);
             else
-                repairText = string.Format("{0}\nCtrl+J: Info menu  |  Toolbar actions available in cockpit", repairText);
+                repairText = string.Format("{0}\nCtrl+J: Info menu  |  Ctrl+N: Hide cockpit HUD", repairText);
 
 			SetInteractiveMenuVisible(interactiveMenuVisible, state.RepairEnabled);
 
@@ -331,6 +348,7 @@ namespace SafeZoneRepair
 				modeText,
 				statusText,
                 currentRepairText,
+                phaseText,
                 costText,
                 repairText
 			);
@@ -383,7 +401,7 @@ namespace SafeZoneRepair
             try
             {
                 var shipController = GetLocalControlledShipController();
-                return shipController != null || IsManualHudAllowed();
+                return (shipController != null && IsCockpitHudVisible()) || IsManualHudAllowed();
             }
             catch
             {
