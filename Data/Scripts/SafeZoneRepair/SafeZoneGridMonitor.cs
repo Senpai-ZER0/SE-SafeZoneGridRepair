@@ -726,7 +726,7 @@ namespace SafeZoneRepair
                         {
                             inAnySafeZone = true;
                             if (repairEnabled)
-                                HandleGridInSafeZone(grid, player.IdentityId);
+                                HandleGridInSafeZone(grid, player.IdentityId, grid.EntityId);
 
                             string statusText = repairEnabled ? "Entered repair zone" : "Repair disabled for your ship";
                             SendRepairUiStateToPlayer(player, true, grid, zone, statusText);
@@ -832,7 +832,7 @@ namespace SafeZoneRepair
         }
 
         // --- Обработка входа корабля в зону ---
-        private void HandleGridInSafeZone(IMyCubeGrid grid, long pilotId)
+        private void HandleGridInSafeZone(IMyCubeGrid grid, long pilotId, long sourceGridEntityId = 0)
         {
             if (!MyAPIGateway.Multiplayer.IsServer) return;
 
@@ -860,7 +860,7 @@ namespace SafeZoneRepair
                 if (projector != null && projector.IsFunctional && projector.IsProjecting)
                 {
                     LogZone($"Found projector, handling projected grid: {projector.ProjectedGrid?.DisplayName}");
-                    HandleGridInSafeZone(projector.ProjectedGrid, pilotId);
+                    HandleGridInSafeZone(projector.ProjectedGrid, pilotId, sourceGridEntityId != 0 ? sourceGridEntityId : grid.EntityId);
                 }
 
                 bool isProjected = Utils.IsProjected(block);
@@ -885,14 +885,13 @@ namespace SafeZoneRepair
                     blocksRepairQueue.Enqueue(block);
                     float totalCost = CalculateTotalRepairCost(block, zoneCfg);
                     LogZone($"Block {Utils.BlockName(block)} totalCost={totalCost}");
-                    if (totalCost > 0)
+                    blockRepairInfo[block] = new BlockRepairInfo
                     {
-                        blockRepairInfo[block] = new BlockRepairInfo { TotalCost = (long)totalCost, InitialCost = (long)totalCost, PilotIdentityId = pilotId };
-                    }
-                    else
-                    {
-                        LogZone($"Block {Utils.BlockName(block)} totalCost <= 0, not adding to repair info");
-                    }
+                        TotalCost = (long)Math.Max(0f, totalCost),
+                        InitialCost = (long)Math.Max(0f, totalCost),
+                        PilotIdentityId = pilotId,
+                        SourceGridEntityId = sourceGridEntityId != 0 ? sourceGridEntityId : grid.EntityId
+                    };
                     added++;
                 }
                 else
@@ -1210,24 +1209,47 @@ namespace SafeZoneRepair
             }
 
             float localWeldingSpeed = GetWeldingSpeedForZone(currentZone);
-            float repairAmount = localWeldingSpeed * (float)deltaTime;
-            float remaining = block.MaxIntegrity - block.BuildIntegrity;
-            LogRepair($"repairAmount={repairAmount}, remaining={remaining}, BuildIntegrity={block.BuildIntegrity}, MaxIntegrity={block.MaxIntegrity}");
-            if (repairAmount > remaining)
-                repairAmount = remaining;
+            float remainingBuildIntegrity = block.MaxIntegrity - block.BuildIntegrity;
+            bool hasDeformation = block.HasDeformation;
+            float currentDamageBefore = block.CurrentDamage;
+            float buildIntegrityBefore = block.BuildIntegrity;
 
-            if (repairAmount <= 0)
+            float repairAmount = localWeldingSpeed * (float)deltaTime;
+            if (remainingBuildIntegrity > 0.01f)
             {
-                LogRepair($"repairAmount <= 0, skipping");
+                if (repairAmount > remainingBuildIntegrity)
+                    repairAmount = remainingBuildIntegrity;
+
+                if (repairAmount < 1f)
+                    repairAmount = Math.Min(remainingBuildIntegrity, 1f);
+            }
+            else if (hasDeformation)
+            {
+                repairAmount = Math.Max(repairAmount, 1f);
+            }
+
+            LogRepair($"repairAmount={repairAmount}, remainingBuildIntegrity={remainingBuildIntegrity}, BuildIntegrity={block.BuildIntegrity}, MaxIntegrity={block.MaxIntegrity}, HasDeformation={hasDeformation}, CurrentDamage={currentDamageBefore}");
+
+            if (repairAmount <= 0 && !hasDeformation)
+            {
+                LogRepair($"repairAmount <= 0 and no deformation, removing block from queue");
+                blocksRepairQueue.Dequeue();
+                blocksInQueue.Remove(block);
+                blockRepairInfo.Remove(block);
                 return;
             }
 
-            float integrityToRestore = block.MaxIntegrity - block.BuildIntegrity + repairAmount;
-            float stepCost = info.TotalCost * (repairAmount / integrityToRestore);
-            if (stepCost < 1) stepCost = 1;
-            LogRepair($"stepCost={stepCost}, integrityToRestore={integrityToRestore}");
+            float stepCost = 0f;
+            if (info.TotalCost > 0 && remainingBuildIntegrity > 0.01f)
+            {
+                float integrityToRestore = remainingBuildIntegrity + repairAmount;
+                stepCost = info.TotalCost * (repairAmount / Math.Max(0.001f, integrityToRestore));
+                if (stepCost < 1f)
+                    stepCost = 1f;
+            }
+            LogRepair($"stepCost={stepCost}, remainingBuildIntegrity={remainingBuildIntegrity}");
 
-            if (balance < stepCost)
+            if (stepCost > 0f && balance < stepCost)
             {
                 LogCost($"Player cannot afford repair step (need {stepCost}, have {balance})");
                 blocksRepairQueue.Dequeue();
@@ -1236,8 +1258,13 @@ namespace SafeZoneRepair
                 return;
             }
 
-            player.RequestChangeBalance(-(long)stepCost);
-            info.TotalCost -= (long)stepCost;
+            if (stepCost > 0f)
+            {
+                player.RequestChangeBalance(-(long)stepCost);
+                info.TotalCost -= (long)stepCost;
+                if (info.TotalCost < 0)
+                    info.TotalCost = 0;
+            }
             LogRepair($"After deduction: new TotalCost={info.TotalCost}");
 
             try
@@ -1256,7 +1283,7 @@ namespace SafeZoneRepair
                     }
                 }
                 LogRepair($"Calling IncreaseMountLevel with repairAmount={repairAmount}");
-                block.IncreaseMountLevel(repairAmount, ownerId, tempInv, 1f);
+                block.IncreaseMountLevel(repairAmount, ownerId, tempInv, 0f);
                 LogRepair($"IncreaseMountLevel completed");
             }
             catch (Exception ex)
@@ -1264,37 +1291,16 @@ namespace SafeZoneRepair
                 LogError($"Repair error: {ex}");
             }
 
+            float buildIntegrityAfter = block.BuildIntegrity;
+            float currentDamageAfter = block.CurrentDamage;
+            bool hasDeformationAfter = block.HasDeformation;
+            bool progressMade = buildIntegrityAfter > buildIntegrityBefore + 0.001f || currentDamageAfter < currentDamageBefore - 0.001f || (hasDeformation && !hasDeformationAfter);
+
             SendRepairNotificationToClients(block, false, 0, player.IdentityId);
 
-            if (block.MaxIntegrity - block.BuildIntegrity <= 0.1f)
+            if (block.MaxIntegrity - block.BuildIntegrity <= 0.01f && !block.HasDeformation)
             {
-                LogRepair($"Block fully repaired (close enough), removing from queue");
-                // Докручиваем до 100%, чтобы избежать 99%
-                if (block.MaxIntegrity - block.BuildIntegrity > 0.01f)
-                {
-                    float remainingFinal = block.MaxIntegrity - block.BuildIntegrity;
-                    try
-                    {
-                        var tempInv = new MyInventory(1000000, new Vector3(10, 10, 10), MyInventoryFlags.CanReceive);
-                        var def = block.BlockDefinition as MyCubeBlockDefinition;
-                        if (def != null)
-                        {
-                            foreach (var comp in def.Components)
-                            {
-                                if (comp.Definition?.Id != null && !string.IsNullOrEmpty(comp.Definition.Id.SubtypeName))
-                                {
-                                    var phys = new MyObjectBuilder_PhysicalObject { SubtypeName = comp.Definition.Id.SubtypeName };
-                                    tempInv.AddItems(1000, phys);
-                                }
-                            }
-                        }
-                        block.IncreaseMountLevel(remainingFinal, ownerId, tempInv, 1f);
-                    }
-                    catch (Exception ex)
-                    {
-                        LogError($"Final repair error: {ex}");
-                    }
-                }
+                LogRepair($"Block fully repaired, removing from queue");
                 blocksRepairQueue.Dequeue();
                 blocksInQueue.Remove(block);
                 blockRepairInfo.Remove(block);
@@ -1304,6 +1310,14 @@ namespace SafeZoneRepair
                     info.TotalCost = 0;
                 }
                 SendRepairNotificationToClients(block, true, info.InitialCost, player.IdentityId);
+                return;
+            }
+
+            if (!progressMade)
+            {
+                LogRepair($"No repair progress detected for {Utils.BlockName(block)}, moving block to back of queue");
+                blocksRepairQueue.Dequeue();
+                blocksRepairQueue.Enqueue(block);
             }
         }
 
@@ -1416,6 +1430,71 @@ namespace SafeZoneRepair
             return null;
         }
 
+        private string BuildCurrentRepairTextForUi(IMyPlayer player, IMyCubeGrid grid)
+        {
+            if (player == null || grid == null)
+                return "Current repair: -";
+
+            int ahead = 0;
+            foreach (var queuedBlock in blocksRepairQueue)
+            {
+                if (queuedBlock == null)
+                {
+                    ahead++;
+                    continue;
+                }
+
+                BlockRepairInfo queuedInfo;
+                if (!blockRepairInfo.TryGetValue(queuedBlock, out queuedInfo))
+                {
+                    ahead++;
+                    continue;
+                }
+
+                long queuedSourceGridId = queuedInfo.SourceGridEntityId != 0 ? queuedInfo.SourceGridEntityId : (queuedBlock.CubeGrid?.EntityId ?? 0);
+                if (queuedSourceGridId != grid.EntityId)
+                {
+                    ahead++;
+                    continue;
+                }
+
+                string blockName = TruncateHudBlockName(Utils.BlockName(queuedBlock), 32);
+                bool queuedHasBuildWork = queuedBlock.MaxIntegrity - queuedBlock.BuildIntegrity > 0.01f;
+                bool queuedHasDeformation = queuedBlock.HasDeformation;
+
+                if (ahead <= 0)
+                {
+                    string phase;
+                    if (queuedHasBuildWork && queuedHasDeformation)
+                        phase = "integrity + deformation";
+                    else if (queuedHasBuildWork)
+                        phase = string.Format("integrity {0:0.0}%", queuedBlock.BuildLevelRatio * 100f);
+                    else if (queuedHasDeformation)
+                        phase = "deformation";
+                    else
+                        phase = "finishing";
+
+                    return string.Format("Current repair: {0} ({1})", blockName, phase);
+                }
+
+                return string.Format("Current repair: queued ({0} ahead) -> {1}", ahead, blockName);
+            }
+
+            long estimate = GetEstimatedRepairCostForUi(player, true, grid, GetSafeZoneForGrid(grid), GetGridRepairSetting(grid));
+            if (estimate > 0)
+                return "Current repair: queued / waiting for next block";
+
+            return "Current repair: -";
+        }
+
+        private string TruncateHudBlockName(string text, int maxLength)
+        {
+            if (string.IsNullOrWhiteSpace(text) || text.Length <= maxLength)
+                return text;
+
+            return text.Substring(0, Math.Max(1, maxLength - 3)) + "...";
+        }
+
         private void SendRepairUiStateToPlayer(IMyPlayer player, bool inRepairZone, IMyCubeGrid grid, MySafeZone zone, string statusText = null, string lastRepairText = null)
         {
             if (player == null || !MyAPIGateway.Multiplayer.IsServer)
@@ -1438,7 +1517,8 @@ namespace SafeZoneRepair
                 StatusText = string.IsNullOrWhiteSpace(statusText) ? (inRepairZone ? "Entered repair zone" : "Outside repair zone") : statusText,
                 LastRepairText = string.IsNullOrWhiteSpace(lastRepairText) ? _clientUiState.LastRepairText : lastRepairText,
                 LastEventUtcTicks = DateTime.UtcNow.Ticks,
-                EstimatedRepairCost = estimatedRepairCost
+                EstimatedRepairCost = estimatedRepairCost,
+                CurrentRepairText = inRepairZone ? BuildCurrentRepairTextForUi(player, grid) : "Current repair: -"
             };
 
             byte[] bytes = MyAPIGateway.Utilities.SerializeToBinary(msg);

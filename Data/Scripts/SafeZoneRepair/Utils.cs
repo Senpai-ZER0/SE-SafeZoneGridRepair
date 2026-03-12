@@ -9,10 +9,16 @@ namespace SafeZoneRepair
     {
         public static bool NeedRepair(this IMySlimBlock target, bool functionalOnly)
         {
+            if (target == null)
+                return false;
+
             var def = target.BlockDefinition as MyCubeBlockDefinition;
+            if (def == null)
+                return target.HasDeformation || target.BuildIntegrity < target.MaxIntegrity - 0.01f;
+
             float needed = functionalOnly ? target.MaxIntegrity * def.CriticalIntegrityRatio : target.MaxIntegrity;
             return !target.IsDestroyed && (target.FatBlock == null || !target.FatBlock.Closed) &&
-                   (target.Integrity < needed - 0.1f); // допуск 0.1, игнорируем деформацию
+                   (target.BuildIntegrity < needed - 0.01f || target.HasDeformation);
         }
 
         public static bool IsProjected(this IMySlimBlock target)

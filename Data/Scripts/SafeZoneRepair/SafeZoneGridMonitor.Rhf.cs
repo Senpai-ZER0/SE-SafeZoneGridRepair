@@ -18,6 +18,7 @@ namespace SafeZoneRepair
         private static Label _zoneLabel;
         private static Label _modeLabel;
         private static Label _statusLabel;
+        private static Label _currentRepairLabel;
         private static Label _repairLabel;
         private static Label _hintLabel;
 
@@ -52,6 +53,7 @@ namespace SafeZoneRepair
                 "Zone: -",
                 "Repair mode: -",
                 "Status: Waiting for zone state",
+                "Current repair: -",
                 "Estimated cost: 0 SC",
                 "Last repair: No repairs performed yet."
             );
@@ -83,6 +85,7 @@ namespace SafeZoneRepair
             _zoneLabel = null;
             _modeLabel = null;
             _statusLabel = null;
+            _currentRepairLabel = null;
             _repairLabel = null;
             _hintLabel = null;
 
@@ -106,6 +109,7 @@ namespace SafeZoneRepair
             _zoneLabel = null;
             _modeLabel = null;
             _statusLabel = null;
+            _currentRepairLabel = null;
             _repairLabel = null;
             _hintLabel = null;
 
@@ -122,7 +126,7 @@ namespace SafeZoneRepair
             {
                 ParentAlignment = ParentAlignments.InnerTopRight,
                 Offset = new Vector2(-240f, -15f),
-                Size = new Vector2(620f, 250f),
+                Size = new Vector2(620f, 290f),
                 Color = new Color(110, 140, 170, 210),
                 Visible = true
             };
@@ -131,7 +135,7 @@ namespace SafeZoneRepair
             {
                 ParentAlignment = ParentAlignments.InnerTopLeft,
                 Offset = new Vector2(0f, 0f),
-                Size = new Vector2(620f, 250f),
+                Size = new Vector2(620f, 290f),
                 Color = new Color(0, 0, 0, 185),
                 Visible = true
             };
@@ -140,8 +144,9 @@ namespace SafeZoneRepair
             _zoneLabel = CreateLabel(new Vector2(24f, -27f), new Vector2(560f, 22f), 0.88f);
             _modeLabel = CreateLabel(new Vector2(24f, -61f), new Vector2(560f, 22f), 0.88f);
             _statusLabel = CreateLabel(new Vector2(24f, -89f), new Vector2(560f, 22f), 0.88f);
-            _repairLabel = CreateLabel(new Vector2(24f, -117f), new Vector2(560f, 44f), 0.84f, TextBuilderModes.Wrapped);
-            _hintLabel = CreateLabel(new Vector2(24f, -149f), new Vector2(560f, 32f), 0.78f, TextBuilderModes.Wrapped);
+            _currentRepairLabel = CreateLabel(new Vector2(24f, -117f), new Vector2(560f, 32f), 0.80f, TextBuilderModes.Wrapped);
+            _repairLabel = CreateLabel(new Vector2(24f, -149f), new Vector2(560f, 24f), 0.84f);
+            _hintLabel = CreateLabel(new Vector2(24f, -177f), new Vector2(560f, 44f), 0.78f, TextBuilderModes.Wrapped);
 
             RhfLog("HUD multilabel panel created");
         }
@@ -160,7 +165,7 @@ namespace SafeZoneRepair
             };
         }
 
-        private void SetHudLines(string title, string zone, string mode, string status, string cost, string repair)
+        private void SetHudLines(string title, string zone, string mode, string status, string currentRepair, string cost, string repair)
         {
             if (_titleLabel != null)
                 _titleLabel.Text = title ?? string.Empty;
@@ -173,6 +178,9 @@ namespace SafeZoneRepair
 
             if (_statusLabel != null)
                 _statusLabel.Text = status ?? string.Empty;
+
+            if (_currentRepairLabel != null)
+                _currentRepairLabel.Text = currentRepair ?? string.Empty;
 
             if (_repairLabel != null)
                 _repairLabel.Text = cost ?? string.Empty;
@@ -222,6 +230,7 @@ namespace SafeZoneRepair
 				repairText = FormatLastRepair(_stickyLastRepairText);
 
             long estimatedRepairCost = state.EstimatedRepairCost < 0 ? 0 : state.EstimatedRepairCost;
+            string currentRepairText = string.IsNullOrWhiteSpace(state.CurrentRepairText) ? "Current repair: -" : state.CurrentRepairText.Trim();
             string costText = string.Format("Estimated cost: {0} SC", estimatedRepairCost);
 
 			SetHudLines(
@@ -229,6 +238,7 @@ namespace SafeZoneRepair
 				"Zone: " + zoneName,
 				modeText,
 				statusText,
+                currentRepairText,
                 costText,
                 repairText
 			);
@@ -251,6 +261,9 @@ namespace SafeZoneRepair
 				else
 					_statusLabel.Format = new GlyphFormat(new Color(210, 225, 240), TextAlignment.Left, 0.88f);
 			}
+
+			if (_currentRepairLabel != null)
+                _currentRepairLabel.Format = new GlyphFormat(new Color(140, 190, 255), TextAlignment.Left, 0.80f);
 
 			if (_repairLabel != null)
 				_repairLabel.Format = new GlyphFormat(new Color(210, 225, 240), TextAlignment.Left, 0.84f);

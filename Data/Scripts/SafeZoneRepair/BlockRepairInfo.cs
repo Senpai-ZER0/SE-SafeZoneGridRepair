@@ -19,5 +19,10 @@ namespace SafeZoneRepair
         /// IdentityId игрока, который пилотировал корабль в момент добавления блока.
         /// </summary>
         public long PilotIdentityId;
+
+        /// <summary>
+        /// EntityId исходного управляемого грида, для которого этот блок попал в очередь.
+        /// </summary>
+        public long SourceGridEntityId;
     }
 }

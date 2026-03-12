@@ -42,6 +42,7 @@ namespace SafeZoneRepair
         [ProtoMember(6)] public string LastRepairText;
         [ProtoMember(7)] public long LastEventUtcTicks;
         [ProtoMember(8)] public long EstimatedRepairCost;
+        [ProtoMember(9)] public string CurrentRepairText;
     }
 
 }
