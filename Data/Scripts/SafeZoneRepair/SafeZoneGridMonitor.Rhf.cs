@@ -1,4 +1,4 @@
-using System;
+﻿using System;
 using Sandbox.ModAPI;
 using RichHudFramework.Client;
 using RichHudFramework.UI;
@@ -21,6 +21,9 @@ namespace SafeZoneRepair
         private static Label _currentRepairLabel;
         private static Label _repairLabel;
         private static Label _hintLabel;
+        private static BorderedButton _toggleRepairButton;
+        private static BorderedButton _showStatusButton;
+        private static BorderedButton _closeMenuButton;
 
         private static string _stickyLastRepairText;
         private static DateTime _stickyLastRepairUntil = DateTime.MinValue;
@@ -89,6 +92,12 @@ namespace SafeZoneRepair
             _currentRepairLabel = null;
             _repairLabel = null;
             _hintLabel = null;
+            _toggleRepairButton = null;
+            _showStatusButton = null;
+            _closeMenuButton = null;
+            _toggleRepairButton = null;
+            _showStatusButton = null;
+            _closeMenuButton = null;
 
             _stickyLastRepairText = null;
             _stickyLastRepairUntil = DateTime.MinValue;
@@ -113,6 +122,9 @@ namespace SafeZoneRepair
             _currentRepairLabel = null;
             _repairLabel = null;
             _hintLabel = null;
+            _toggleRepairButton = null;
+            _showStatusButton = null;
+            _closeMenuButton = null;
 
             _stickyLastRepairText = null;
             _stickyLastRepairUntil = DateTime.MinValue;
@@ -127,7 +139,7 @@ namespace SafeZoneRepair
             {
                 ParentAlignment = ParentAlignments.InnerTopRight,
                 Offset = new Vector2(-240f, -15f),
-                Size = new Vector2(620f, 290f),
+                Size = new Vector2(620f, 350f),
                 Color = new Color(110, 140, 170, 210),
                 Visible = true
             };
@@ -136,7 +148,7 @@ namespace SafeZoneRepair
             {
                 ParentAlignment = ParentAlignments.InnerTopLeft,
                 Offset = new Vector2(0f, 0f),
-                Size = new Vector2(620f, 290f),
+                Size = new Vector2(620f, 350f),
                 Color = new Color(0, 0, 0, 185),
                 Visible = true
             };
@@ -148,6 +160,21 @@ namespace SafeZoneRepair
             _currentRepairLabel = CreateLabel(new Vector2(24f, -117f), new Vector2(560f, 32f), 0.80f, TextBuilderModes.Wrapped);
             _repairLabel = CreateLabel(new Vector2(24f, -149f), new Vector2(560f, 24f), 0.84f);
             _hintLabel = CreateLabel(new Vector2(24f, -177f), new Vector2(560f, 44f), 0.78f, TextBuilderModes.Wrapped);
+
+            _toggleRepairButton = CreateMenuButton(new Vector2(24f, -234f), new Vector2(170f, 36f), "Toggle repair");
+            _showStatusButton = CreateMenuButton(new Vector2(214f, -234f), new Vector2(170f, 36f), "Show status");
+            _closeMenuButton = CreateMenuButton(new Vector2(404f, -234f), new Vector2(170f, 36f), "Close menu");
+
+            if (_toggleRepairButton != null)
+                _toggleRepairButton.MouseInput.LeftClicked += ToggleRepairButtonClicked;
+
+            if (_showStatusButton != null)
+                _showStatusButton.MouseInput.LeftClicked += ShowStatusButtonClicked;
+
+            if (_closeMenuButton != null)
+                _closeMenuButton.MouseInput.LeftClicked += CloseMenuButtonClicked;
+
+            SetInteractiveMenuVisible(false, false);
 
             RhfLog("HUD multilabel panel created");
         }
@@ -164,6 +191,80 @@ namespace SafeZoneRepair
                 BuilderMode = builderMode,
                 Format = new GlyphFormat(Color.White, TextAlignment.Left, textSize)
             };
+        }
+
+        private BorderedButton CreateMenuButton(Vector2 offset, Vector2 size, string text)
+        {
+            var button = new BorderedButton(_panel)
+            {
+                ParentAlignment = ParentAlignments.InnerTopLeft,
+                Offset = offset,
+                Size = size,
+                Text = text,
+                Visible = false
+            };
+
+            button.Format = new GlyphFormat(Color.White, TextAlignment.Center, 0.78f);
+            button.Color = new Color(24, 40, 54, 230);
+            button.HighlightColor = new Color(70, 110, 145, 230);
+            button.FocusColor = new Color(120, 180, 210, 230);
+            button.BorderColor = new Color(110, 140, 170, 230);
+            button.BorderThickness = 1f;
+
+            return button;
+        }
+
+        private void SetInteractiveMenuVisible(bool visible, bool repairEnabled)
+        {
+            if (_toggleRepairButton != null)
+            {
+                _toggleRepairButton.Visible = visible;
+                _toggleRepairButton.Text = repairEnabled ? "Disable repair" : "Enable repair";
+            }
+
+            if (_showStatusButton != null)
+                _showStatusButton.Visible = visible;
+
+            if (_closeMenuButton != null)
+                _closeMenuButton.Visible = visible;
+        }
+
+        private void ToggleRepairButtonClicked(object sender, EventArgs e)
+        {
+            try
+            {
+                ToggleRepairForLocalContext();
+            }
+            catch (Exception ex)
+            {
+                LogError("ToggleRepairButtonClicked error: " + ex);
+            }
+        }
+
+        private void ShowStatusButtonClicked(object sender, EventArgs e)
+        {
+            try
+            {
+                ShowStatusForLocalContext();
+            }
+            catch (Exception ex)
+            {
+                LogError("ShowStatusButtonClicked error: " + ex);
+            }
+        }
+
+        private void CloseMenuButtonClicked(object sender, EventArgs e)
+        {
+            try
+            {
+                _cockpitInteractiveRequested = false;
+                if (_clientUiState != null)
+                    UpdateRichHudState(_clientUiState);
+            }
+            catch (Exception ex)
+            {
+                LogError("CloseMenuButtonClicked error: " + ex);
+            }
         }
 
         private void SetHudLines(string title, string zone, string mode, string status, string currentRepair, string cost, string repair)
@@ -201,6 +302,7 @@ namespace SafeZoneRepair
 			{
                 _manualHudRequested = false;
                 _cockpitHudSuppressed = false;
+                _cockpitInteractiveRequested = false;
 				HideHud();
 				return;
 			}
@@ -212,6 +314,9 @@ namespace SafeZoneRepair
 			}
 
 			ShowHud();
+
+            bool interactiveMenuVisible = GetLocalControlledShipController() != null && IsCockpitInteractiveHudRequested();
+            SetInteractiveCursorEnabled(interactiveMenuVisible);
 
 			string zoneName = string.IsNullOrWhiteSpace(state.ZoneName) ? "Repair Zone" : state.ZoneName.Trim();
 			string modeText = state.RepairEnabled ? "Repair mode: enabled" : "Repair mode: disabled";
@@ -234,7 +339,14 @@ namespace SafeZoneRepair
             long estimatedRepairCost = state.EstimatedRepairCost < 0 ? 0 : state.EstimatedRepairCost;
             string currentRepairText = string.IsNullOrWhiteSpace(state.CurrentRepairText) ? "Current repair: -" : state.CurrentRepairText.Trim();
             string costText = string.Format("Estimated cost: {0} SC", estimatedRepairCost);
-            repairText = string.Format("{0}\nCtrl+J: HUD  |  Ctrl+R: Repair (cockpit)  |  RHF Terminal: Keybinds", repairText);
+            if (interactiveMenuVisible)
+                repairText = string.Format("{0}\nInteractive menu active  |  Ctrl+J: Close menu  |  Ctrl+R: Repair (cockpit)", repairText);
+            else if (GetLocalControlledShipController() != null)
+                repairText = string.Format("{0}\nCtrl+J: Interactive menu  |  Ctrl+R: Repair (cockpit)  |  Toolbar actions available", repairText);
+            else
+                repairText = string.Format("{0}\nCtrl+J: Info menu  |  Toolbar actions available in cockpit", repairText);
+
+			SetInteractiveMenuVisible(interactiveMenuVisible, state.RepairEnabled);
 
 			SetHudLines(
 				"Safe Zone Repair",
@@ -277,6 +389,8 @@ namespace SafeZoneRepair
 
         private void HideHud()
         {
+            SetInteractiveCursorEnabled(false);
+
             if (_panel != null)
                 _panel.Visible = false;
         }
@@ -292,7 +406,7 @@ namespace SafeZoneRepair
             try
             {
                 var shipController = GetLocalControlledShipController();
-                return (shipController != null && IsCockpitHudVisible()) || IsManualHudAllowed();
+                return shipController != null || IsManualHudAllowed();
             }
             catch
             {

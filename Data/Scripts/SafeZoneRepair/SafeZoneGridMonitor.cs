@@ -1,4 +1,4 @@
-using Sandbox.ModAPI;
+﻿using Sandbox.ModAPI;
 using Sandbox.Game;
 using Sandbox.Game.Entities;
 using Sandbox.Game.Entities.Blocks;
@@ -84,6 +84,7 @@ namespace SafeZoneRepair
         private Dictionary<long, long> _lastControlledGridByPlayer = new Dictionary<long, long>();
         private bool _manualHudRequested = false;
         private bool _cockpitHudSuppressed = false;
+        private bool _cockpitInteractiveRequested = false;
         private static readonly MyKeys HudToggleKey = MyKeys.J;
         private static readonly MyKeys RepairToggleKey = MyKeys.R;
 
@@ -186,6 +187,7 @@ namespace SafeZoneRepair
                 _lastControlledGridByPlayer.Clear();
                 _manualHudRequested = false;
                 _cockpitHudSuppressed = false;
+                _cockpitInteractiveRequested = false;
 
                 _rhfBindsRegistered = false;
                 _rhfTerminalPagesRegistered = false;
@@ -195,6 +197,7 @@ namespace SafeZoneRepair
                 _rhfTerminalCategory = null;
                 _rhfKeybindPage = null;
                 _rhfOverviewPage = null;
+                SetInteractiveCursorEnabled(false);
             }
             catch (Exception ex)
             {
@@ -563,7 +566,27 @@ namespace SafeZoneRepair
 
         private bool IsCockpitHudVisible()
         {
-            return !_cockpitHudSuppressed;
+            return true;
+        }
+
+        private bool IsCockpitInteractiveHudRequested()
+        {
+            return _cockpitInteractiveRequested;
+        }
+
+        private void SetInteractiveCursorEnabled(bool enabled)
+        {
+            try
+            {
+                if (MyAPIGateway.Utilities == null || MyAPIGateway.Utilities.IsDedicated || !_richHudReady)
+                    return;
+
+                HudMain.EnableCursor = enabled;
+            }
+            catch (Exception ex)
+            {
+                LogError($"SetInteractiveCursorEnabled error: {ex}");
+            }
         }
 
         private IMyPlayer GetLocalPlayer()
@@ -600,12 +623,12 @@ namespace SafeZoneRepair
                     if (sourceGrid != null && shipController.CubeGrid.EntityId != sourceGrid.EntityId)
                         return;
 
-                    _cockpitHudSuppressed = !_cockpitHudSuppressed;
+                    _cockpitInteractiveRequested = !_cockpitInteractiveRequested;
                     _manualHudRequested = false;
+                    _cockpitHudSuppressed = false;
+                    SetInteractiveCursorEnabled(_cockpitInteractiveRequested);
 
-                    if (_cockpitHudSuppressed)
-                        HideHud();
-                    else if (_clientUiState != null)
+                    if (_clientUiState != null)
                         UpdateRichHudState(_clientUiState);
                     else
                         ShowHud();
@@ -616,6 +639,7 @@ namespace SafeZoneRepair
                 if (_clientUiState == null || !_clientUiState.InRepairZone)
                 {
                     _manualHudRequested = false;
+                    SetInteractiveCursorEnabled(false);
                     HideHud();
                     return;
                 }
@@ -790,7 +814,10 @@ namespace SafeZoneRepair
                 if (MyAPIGateway.Gui == null)
                     return;
 
-                if (MyAPIGateway.Gui.ChatEntryVisible || MyAPIGateway.Gui.IsCursorVisible)
+                if (MyAPIGateway.Gui.ChatEntryVisible)
+                    return;
+
+                if (MyAPIGateway.Gui.IsCursorVisible && !IsCockpitInteractiveHudRequested())
                     return;
 
                 if (IsHudHotkeyPressed())
@@ -864,18 +891,22 @@ namespace SafeZoneRepair
                 {
                     _manualHudRequested = false;
                     _cockpitHudSuppressed = false;
+                    _cockpitInteractiveRequested = false;
+                    SetInteractiveCursorEnabled(false);
                     HideHud();
                     return;
                 }
 
                 if (GetLocalControlledShipController() != null)
                 {
-                    if (IsCockpitHudVisible())
-                        ShowHud();
-                    else
-                        HideHud();
+                    _cockpitHudSuppressed = false;
+                    SetInteractiveCursorEnabled(_cockpitInteractiveRequested);
+                    ShowHud();
                     return;
                 }
+
+                _cockpitInteractiveRequested = false;
+                SetInteractiveCursorEnabled(false);
 
                 if (IsManualHudAllowed())
                 {
