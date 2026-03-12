@@ -199,6 +199,7 @@ namespace SafeZoneRepair
 			if (!state.InRepairZone)
 			{
                 _manualHudRequested = false;
+                _cockpitHudSuppressed = false;
 				HideHud();
 				return;
 			}
@@ -232,6 +233,7 @@ namespace SafeZoneRepair
             long estimatedRepairCost = state.EstimatedRepairCost < 0 ? 0 : state.EstimatedRepairCost;
             string currentRepairText = string.IsNullOrWhiteSpace(state.CurrentRepairText) ? "Current repair: -" : state.CurrentRepairText.Trim();
             string costText = string.Format("Estimated cost: {0} SC", estimatedRepairCost);
+            repairText = string.Format("{0}\nCtrl+H: HUD  |  Ctrl+R: Repair  |  Toolbar: Toggle Repair HUD", repairText);
 
 			SetHudLines(
 				"Safe Zone Repair",
@@ -288,7 +290,8 @@ namespace SafeZoneRepair
         {
             try
             {
-                return GetLocalControlledShipController() != null || IsManualHudAllowed();
+                var shipController = GetLocalControlledShipController();
+                return (shipController != null && IsCockpitHudVisible()) || IsManualHudAllowed();
             }
             catch
             {

@@ -36,6 +36,16 @@ namespace SafeZoneRepair
                 };
                 MyAPIGateway.TerminalControls.AddAction<IMyShipController>(toggleAction);
 
+                var hudAction = MyAPIGateway.TerminalControls.CreateAction<IMyShipController>("ToggleRepairHud");
+                hudAction.Name = new StringBuilder("Toggle repair HUD");
+                hudAction.Icon = @"Textures\GUI\Icons\Actions\Toggle.dds";
+                hudAction.Action = (block) =>
+                {
+                    if (block?.CubeGrid != null)
+                        ToggleHudForLocalContext(block.CubeGrid);
+                };
+                MyAPIGateway.TerminalControls.AddAction<IMyShipController>(hudAction);
+
                 var statusAction = MyAPIGateway.TerminalControls.CreateAction<IMyShipController>("ShowRepairStatus");
                 statusAction.Name = new StringBuilder("Show repair status");
                 statusAction.Icon = @"Textures\GUI\Icons\Actions\Info.dds";

@@ -19,6 +19,7 @@ using VRage;
 using System.Text;
 using VRage.Utils;
 using VRage.ObjectBuilders;
+using VRage.Input;
 using SafeZoneRepair;
 
 namespace SafeZoneRepair
@@ -80,6 +81,9 @@ namespace SafeZoneRepair
         private RepairUiStateMessage _clientUiState = new RepairUiStateMessage { InRepairZone = false, ZoneName = "Repair Zone", RepairEnabled = false, StatusText = "Waiting for zone state", LastRepairText = "No repairs performed yet.", EstimatedRepairCost = 0 };
         private Dictionary<long, long> _lastControlledGridByPlayer = new Dictionary<long, long>();
         private bool _manualHudRequested = false;
+        private bool _cockpitHudSuppressed = false;
+        private static readonly MyKeys HudToggleKey = MyKeys.H;
+        private static readonly MyKeys RepairToggleKey = MyKeys.R;
 
         private sealed class EstimatedRepairCostCacheEntry
         {
@@ -170,6 +174,7 @@ namespace SafeZoneRepair
                 _estimatedRepairCostCache.Clear();
                 _lastControlledGridByPlayer.Clear();
                 _manualHudRequested = false;
+                _cockpitHudSuppressed = false;
             }
             catch (Exception ex)
             {
@@ -536,6 +541,154 @@ namespace SafeZoneRepair
             return _manualHudRequested && _clientUiState != null && _clientUiState.InRepairZone;
         }
 
+        private bool IsCockpitHudVisible()
+        {
+            return !_cockpitHudSuppressed;
+        }
+
+        private IMyPlayer GetLocalPlayer()
+        {
+            var session = MyAPIGateway.Session;
+            return session?.Player ?? session?.LocalHumanPlayer;
+        }
+
+        private IMyCubeGrid GetLocalActionGrid()
+        {
+            var shipController = GetLocalControlledShipController();
+            if (shipController?.CubeGrid != null)
+                return shipController.CubeGrid;
+
+            var player = GetLocalPlayer();
+            var character = player?.Character;
+            if (character == null)
+                return null;
+
+            var zone = GetSafeZoneForPosition(character.GetPosition());
+            return GetLastKnownGridForPlayer(player, zone);
+        }
+
+        private void ToggleHudForLocalContext(IMyCubeGrid sourceGrid = null)
+        {
+            try
+            {
+                if (MyAPIGateway.Utilities == null || MyAPIGateway.Utilities.IsDedicated)
+                    return;
+
+                var shipController = GetLocalControlledShipController();
+                if (shipController?.CubeGrid != null)
+                {
+                    if (sourceGrid != null && shipController.CubeGrid.EntityId != sourceGrid.EntityId)
+                        return;
+
+                    _cockpitHudSuppressed = !_cockpitHudSuppressed;
+                    _manualHudRequested = false;
+
+                    if (_cockpitHudSuppressed)
+                        HideHud();
+                    else if (_clientUiState != null)
+                        UpdateRichHudState(_clientUiState);
+                    else
+                        ShowHud();
+
+                    return;
+                }
+
+                if (_clientUiState == null || !_clientUiState.InRepairZone)
+                {
+                    _manualHudRequested = false;
+                    HideHud();
+                    return;
+                }
+
+                _manualHudRequested = !_manualHudRequested;
+                if (!_manualHudRequested)
+                {
+                    HideHud();
+                }
+                else
+                {
+                    UpdateRichHudState(_clientUiState);
+                    UpdateClientHudVisibility();
+                }
+            }
+            catch (Exception ex)
+            {
+                LogError($"ToggleHudForLocalContext error: {ex}");
+            }
+        }
+
+        private void ToggleRepairForLocalContext(IMyCubeGrid sourceGrid = null)
+        {
+            try
+            {
+                IMyCubeGrid grid = sourceGrid ?? GetLocalActionGrid();
+                if (grid == null)
+                    return;
+
+                ToggleRepair(grid);
+            }
+            catch (Exception ex)
+            {
+                LogError($"ToggleRepairForLocalContext error: {ex}");
+            }
+        }
+
+        private void ShowStatusForLocalContext(IMyCubeGrid sourceGrid = null)
+        {
+            try
+            {
+                IMyCubeGrid grid = sourceGrid ?? GetLocalActionGrid();
+                if (grid == null)
+                    return;
+
+                ShowRepairStatus(grid);
+            }
+            catch (Exception ex)
+            {
+                LogError($"ShowStatusForLocalContext error: {ex}");
+            }
+        }
+
+        private bool IsHudHotkeyPressed()
+        {
+            var input = MyAPIGateway.Input;
+            return input != null && input.IsAnyCtrlKeyPressed() && input.IsNewKeyPressed(HudToggleKey);
+        }
+
+        private bool IsRepairHotkeyPressed()
+        {
+            var input = MyAPIGateway.Input;
+            return input != null && input.IsAnyCtrlKeyPressed() && input.IsNewKeyPressed(RepairToggleKey);
+        }
+
+        private void UpdateClientHotkeys()
+        {
+            try
+            {
+                if (MyAPIGateway.Utilities == null || MyAPIGateway.Utilities.IsDedicated)
+                    return;
+
+                if (MyAPIGateway.Input == null || MyAPIGateway.Session == null)
+                    return;
+
+                if (MyAPIGateway.Gui == null)
+                    return;
+
+                if (MyAPIGateway.Gui.ChatEntryVisible || MyAPIGateway.Gui.IsCursorVisible)
+                    return;
+
+                if (IsHudHotkeyPressed())
+                    ToggleHudForLocalContext();
+
+                if (IsRepairHotkeyPressed())
+                    ToggleRepairForLocalContext();
+            }
+            catch (Exception ex)
+            {
+                LogError($"UpdateClientHotkeys error: {ex}");
+            }
+        }
+
         private MySafeZone GetSafeZoneForPosition(Vector3D position)
         {
             foreach (var zone in safeZones)
@@ -594,13 +747,17 @@ namespace SafeZoneRepair
                 if (_clientUiState == null || !_clientUiState.InRepairZone)
                 {
                     _manualHudRequested = false;
+                    _cockpitHudSuppressed = false;
                     HideHud();
                     return;
                 }
 
                 if (GetLocalControlledShipController() != null)
                 {
-                    ShowHud();
+                    if (IsCockpitHudVisible())
+                        ShowHud();
+                    else
+                        HideHud();
                     return;
                 }
 
@@ -621,7 +778,10 @@ namespace SafeZoneRepair
         public override void UpdateAfterSimulation()
         {
             if (MyAPIGateway.Utilities != null && !MyAPIGateway.Utilities.IsDedicated)
+            {
+                UpdateClientHotkeys();
                 UpdateClientHudVisibility();
+            }
 
             if (!MyAPIGateway.Multiplayer.IsServer)
                 return;
@@ -1611,25 +1771,7 @@ namespace SafeZoneRepair
             if (command == "/szhud")
             {
                 sendToOthers = false;
-
-                if (_clientUiState == null || !_clientUiState.InRepairZone)
-                {
-                    _manualHudRequested = false;
-                    HideHud();
-                    return;
-                }
-
-                _manualHudRequested = !_manualHudRequested;
-                if (!_manualHudRequested)
-                {
-                    HideHud();
-                }
-                else
-                {
-                    UpdateRichHudState(_clientUiState);
-                    UpdateClientHudVisibility();
-                }
-
+                ToggleHudForLocalContext();
                 return;
             }
 
@@ -1677,6 +1819,10 @@ namespace SafeZoneRepair
                     ToggleRepair(grid);
                 else if (msg.Action == "Status")
                     ShowRepairStatus(grid);
+                else if (msg.Action == "ToggleHud")
+                    ToggleHudForLocalContext(grid);
+                else if (msg.Action == "ToggleRepairLocal")
+                    ToggleRepairForLocalContext(grid);
             }
             catch (Exception ex)
             {
