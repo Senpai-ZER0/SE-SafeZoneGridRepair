@@ -16,7 +16,7 @@ namespace SafeZoneRepair
             if (def == null)
                 return !target.IsDestroyed &&
                        (target.FatBlock == null || !target.FatBlock.Closed) &&
-                       (target.BuildIntegrity < target.MaxIntegrity - 0.01f);
+                       (target.BuildIntegrity < target.MaxIntegrity - 0.01f || (!functionalOnly && target.HasDeformation));
 
             float needed = functionalOnly
                 ? target.MaxIntegrity * def.CriticalIntegrityRatio
@@ -24,7 +24,7 @@ namespace SafeZoneRepair
 
             return !target.IsDestroyed &&
                    (target.FatBlock == null || !target.FatBlock.Closed) &&
-                   (target.BuildIntegrity < needed - 0.01f);
+                   (target.BuildIntegrity < needed - 0.01f || (!functionalOnly && target.HasDeformation));
         }
 
         public static bool IsProjected(this IMySlimBlock target)

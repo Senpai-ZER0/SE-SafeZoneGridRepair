@@ -1211,17 +1211,10 @@ namespace SafeZoneRepair
             float localWeldingSpeed = GetWeldingSpeedForZone(currentZone);
             float remainingBuildIntegrity = block.MaxIntegrity - block.BuildIntegrity;
             bool hasDeformation = block.HasDeformation;
+            bool pureDeformationOnly = remainingBuildIntegrity <= 0.01f && hasDeformation;
             float currentDamageBefore = block.CurrentDamage;
+            float accumulatedDamageBefore = block.AccumulatedDamage;
             float buildIntegrityBefore = block.BuildIntegrity;
-
-            if (remainingBuildIntegrity <= 0.01f && hasDeformation)
-            {
-                LogRepair($"Skipping deformation-only block {Utils.BlockName(block)} to avoid repair loop");
-                blocksRepairQueue.Dequeue();
-                blocksInQueue.Remove(block);
-                blockRepairInfo.Remove(block);
-                return;
-            }
 
             float repairAmount = localWeldingSpeed * (float)deltaTime;
             if (remainingBuildIntegrity > 0.01f)
@@ -1237,7 +1230,7 @@ namespace SafeZoneRepair
                 repairAmount = Math.Max(repairAmount, 1f);
             }
 
-            LogRepair($"repairAmount={repairAmount}, remainingBuildIntegrity={remainingBuildIntegrity}, BuildIntegrity={block.BuildIntegrity}, MaxIntegrity={block.MaxIntegrity}, HasDeformation={hasDeformation}, CurrentDamage={currentDamageBefore}");
+            LogRepair($"repairAmount={repairAmount}, remainingBuildIntegrity={remainingBuildIntegrity}, BuildIntegrity={block.BuildIntegrity}, MaxIntegrity={block.MaxIntegrity}, HasDeformation={hasDeformation}, CurrentDamage={currentDamageBefore}, AccumulatedDamage={accumulatedDamageBefore}");
 
             if (repairAmount <= 0 && !hasDeformation)
             {
@@ -1291,9 +1284,30 @@ namespace SafeZoneRepair
                         }
                     }
                 }
-                LogRepair($"Calling IncreaseMountLevel with repairAmount={repairAmount}");
-                block.IncreaseMountLevel(repairAmount, ownerId, tempInv, 0f);
-                LogRepair($"IncreaseMountLevel completed");
+
+                if (pureDeformationOnly)
+                {
+                    float deformationBudget = Math.Max(1f, Math.Max(currentDamageBefore, accumulatedDamageBefore));
+                    LogRepair($"Calling FixBones for deformation-only block with oldDamage={deformationBudget}");
+                    block.FixBones(deformationBudget, 0f);
+                    block.UpdateVisual();
+                    LogRepair("FixBones completed");
+                }
+                else
+                {
+                    LogRepair($"Calling IncreaseMountLevel with repairAmount={repairAmount}");
+                    block.IncreaseMountLevel(repairAmount, ownerId, tempInv, 0f);
+                    LogRepair($"IncreaseMountLevel completed");
+
+                    if (block.HasDeformation && block.MaxIntegrity - block.BuildIntegrity <= 0.01f)
+                    {
+                        float deformationBudget = Math.Max(1f, Math.Max(currentDamageBefore, accumulatedDamageBefore));
+                        LogRepair($"Calling FixBones after weld completion with oldDamage={deformationBudget}");
+                        block.FixBones(deformationBudget, 0f);
+                        block.UpdateVisual();
+                        LogRepair("Post-weld FixBones completed");
+                    }
+                }
             }
             catch (Exception ex)
             {
@@ -1302,8 +1316,13 @@ namespace SafeZoneRepair
 
             float buildIntegrityAfter = block.BuildIntegrity;
             float currentDamageAfter = block.CurrentDamage;
+            float accumulatedDamageAfter = block.AccumulatedDamage;
             bool hasDeformationAfter = block.HasDeformation;
-            bool progressMade = buildIntegrityAfter > buildIntegrityBefore + 0.001f || currentDamageAfter < currentDamageBefore - 0.001f || (hasDeformation && !hasDeformationAfter);
+            bool progressMade =
+                buildIntegrityAfter > buildIntegrityBefore + 0.001f ||
+                currentDamageAfter < currentDamageBefore - 0.001f ||
+                accumulatedDamageAfter < accumulatedDamageBefore - 0.001f ||
+                (hasDeformation && !hasDeformationAfter);
 
             SendRepairNotificationToClients(block, false, 0, player.IdentityId);
 
@@ -1326,7 +1345,7 @@ namespace SafeZoneRepair
             {
                 info.NoProgressPasses++;
 
-                if (info.NoProgressPasses >= 3)
+                if (info.NoProgressPasses >= 5)
                 {
                     LogRepair($"No repair progress detected for {Utils.BlockName(block)} after {info.NoProgressPasses} attempts, removing block from queue");
                     blocksRepairQueue.Dequeue();
