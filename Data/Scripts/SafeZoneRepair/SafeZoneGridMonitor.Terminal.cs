@@ -71,7 +71,7 @@ namespace SafeZoneRepair
         {
             var action = MyAPIGateway.TerminalControls.CreateAction<IMyShipController>("ShowRepairStatus");
             action.Name = new StringBuilder("Show repair status");
-            action.Icon = @"Textures\GUI\Icons\Actions\SetValue.dds";
+            action.Icon = @"Textures\GUI\Icons\Actions\Toggle.dds";
             action.Action = block =>
             {
                 var shipController = block as IMyShipController;
@@ -91,7 +91,7 @@ namespace SafeZoneRepair
         {
             var action = MyAPIGateway.TerminalControls.CreateAction<IMyShipController>("ToggleRepairHud");
             action.Name = new StringBuilder("Toggle repair HUD");
-            action.Icon = @"Textures\GUI\Icons\Actions\SetValueAndExecute.dds";
+            action.Icon = @"Textures\GUI\Icons\Actions\Toggle.dds";
             action.Action = block =>
             {
                 var shipController = block as IMyShipController;

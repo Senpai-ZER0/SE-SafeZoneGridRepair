@@ -1,4 +1,4 @@
-﻿using System;
+using System;
 using Sandbox.ModAPI;
 using RichHudFramework.Client;
 using RichHudFramework.UI;
@@ -44,6 +44,7 @@ namespace SafeZoneRepair
             _richHudReady = true;
             RhfLog("HudInit called");
             EnsureHudCreated();
+            EnsureRhfBindingsAndTerminal();
 
             if (_panel != null)
                 _panel.Visible = false;
@@ -233,7 +234,7 @@ namespace SafeZoneRepair
             long estimatedRepairCost = state.EstimatedRepairCost < 0 ? 0 : state.EstimatedRepairCost;
             string currentRepairText = string.IsNullOrWhiteSpace(state.CurrentRepairText) ? "Current repair: -" : state.CurrentRepairText.Trim();
             string costText = string.Format("Estimated cost: {0} SC", estimatedRepairCost);
-            repairText = string.Format("{0}\nCtrl+J: HUD  |  Ctrl+R: Repair (cockpit)  |  Toolbar: Repair / Status / HUD", repairText);
+            repairText = string.Format("{0}\nCtrl+J: HUD  |  Ctrl+R: Repair (cockpit)  |  RHF Terminal: Keybinds", repairText);
 
 			SetHudLines(
 				"Safe Zone Repair",

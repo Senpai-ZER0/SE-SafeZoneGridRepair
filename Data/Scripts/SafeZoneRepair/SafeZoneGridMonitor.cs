@@ -1,4 +1,4 @@
-﻿using Sandbox.ModAPI;
+using Sandbox.ModAPI;
 using Sandbox.Game;
 using Sandbox.Game.Entities;
 using Sandbox.Game.Entities.Blocks;
@@ -21,6 +21,8 @@ using VRage.Utils;
 using VRage.ObjectBuilders;
 using VRage.Input;
 using SafeZoneRepair;
+using RichHudFramework.UI;
+using RichHudFramework.UI.Client;
 
 namespace SafeZoneRepair
 {
@@ -84,6 +86,15 @@ namespace SafeZoneRepair
         private bool _cockpitHudSuppressed = false;
         private static readonly MyKeys HudToggleKey = MyKeys.J;
         private static readonly MyKeys RepairToggleKey = MyKeys.R;
+
+        private static bool _rhfBindsRegistered = false;
+        private static bool _rhfTerminalPagesRegistered = false;
+        private static IBindGroup _rhfBindGroup;
+        private static IBind _hudToggleBind;
+        private static IBind _repairToggleBind;
+        private static TerminalPageCategory _rhfTerminalCategory;
+        private static RebindPage _rhfKeybindPage;
+        private static TextPage _rhfOverviewPage;
 
         private sealed class EstimatedRepairCostCacheEntry
         {
@@ -175,6 +186,15 @@ namespace SafeZoneRepair
                 _lastControlledGridByPlayer.Clear();
                 _manualHudRequested = false;
                 _cockpitHudSuppressed = false;
+
+                _rhfBindsRegistered = false;
+                _rhfTerminalPagesRegistered = false;
+                _rhfBindGroup = null;
+                _hudToggleBind = null;
+                _repairToggleBind = null;
+                _rhfTerminalCategory = null;
+                _rhfKeybindPage = null;
+                _rhfOverviewPage = null;
             }
             catch (Exception ex)
             {
@@ -622,12 +642,12 @@ namespace SafeZoneRepair
             try
             {
                 var shipController = GetLocalControlledShipController();
-                IMyCubeGrid grid = sourceGrid;
+                IMyCubeGrid grid = shipController?.CubeGrid;
 
                 if (grid == null)
-                    grid = shipController?.CubeGrid;
+                    return;
 
-                if (grid == null)
+                if (sourceGrid != null && sourceGrid.EntityId != grid.EntityId)
                     return;
 
                 ToggleRepair(grid);
@@ -654,14 +674,103 @@ namespace SafeZoneRepair
             }
         }
 
+        private void EnsureRhfBindingsAndTerminal()
+        {
+            try
+            {
+                if (MyAPIGateway.Utilities == null || MyAPIGateway.Utilities.IsDedicated || !_richHudReady)
+                    return;
+
+                if (!_rhfBindsRegistered || _rhfBindGroup == null)
+                {
+                    _rhfBindGroup = BindManager.GetOrCreateGroup("SafeZoneRepair");
+
+                    RegisterOrGetBind("Toggle HUD", new ControlHandle[] { RichHudControls.Control, RichHudControls.J }, out _hudToggleBind);
+                    RegisterOrGetBind("Toggle Repair", new ControlHandle[] { RichHudControls.Control, RichHudControls.R }, out _repairToggleBind);
+
+                    _rhfBindsRegistered = true;
+                }
+
+                if (!_rhfTerminalPagesRegistered)
+                {
+                    _rhfTerminalCategory = new TerminalPageCategory
+                    {
+                        Name = "Safe Zone Repair",
+                        Enabled = true
+                    };
+
+                    _rhfOverviewPage = new TextPage
+                    {
+                        Name = "Overview",
+                        Enabled = true
+                    };
+                    _rhfOverviewPage.HeaderText = new RichText("Safe Zone Repair");
+                    _rhfOverviewPage.SubHeaderText = new RichText("RHF controls and bindable actions");
+                    _rhfOverviewPage.Text = new RichText("Ctrl+J toggles the repair HUD.\nCtrl+R toggles repair mode only while controlling a ship controller.\nCockpit toolbar actions remain available for HUD, status and repair mode.\nYou can rebind the RHF hotkeys on the Keybinds page.");
+
+                    _rhfKeybindPage = new RebindPage
+                    {
+                        Name = "Keybinds",
+                        Enabled = true
+                    };
+                    _rhfKeybindPage.Add(_rhfBindGroup, GetDefaultRhfBindDefinitions(), false);
+
+                    _rhfTerminalCategory.Add(_rhfOverviewPage);
+                    _rhfTerminalCategory.Add(_rhfKeybindPage);
+                    RichHudTerminal.Root.Add(_rhfTerminalCategory);
+
+                    _rhfTerminalPagesRegistered = true;
+                }
+            }
+            catch (Exception ex)
+            {
+                LogError($"EnsureRhfBindingsAndTerminal error: {ex}");
+            }
+        }
+
+        private void RegisterOrGetBind(string bindName, IReadOnlyList<ControlHandle> combo, out IBind bind)
+        {
+            bind = null;
+
+            if (_rhfBindGroup == null)
+                return;
+
+            if (!_rhfBindGroup.DoesBindExist(bindName))
+            {
+                IBind registeredBind;
+                if (_rhfBindGroup.TryRegisterBind(bindName, out registeredBind, combo))
+                {
+                    bind = registeredBind;
+                    return;
+                }
+            }
+
+            bind = _rhfBindGroup.GetBind(bindName);
+        }
+
+        private BindDefinition[] GetDefaultRhfBindDefinitions()
+        {
+            return new[]
+            {
+                new BindDefinition("Toggle HUD", new[] { "Control", "J" }),
+                new BindDefinition("Toggle Repair", new[] { "Control", "R" })
+            };
+        }
+
         private bool IsHudHotkeyPressed()
         {
+            if (_hudToggleBind != null)
+                return _hudToggleBind.IsNewPressed;
+
             var input = MyAPIGateway.Input;
             return input != null && input.IsAnyCtrlKeyPressed() && input.IsNewKeyPressed(HudToggleKey);
         }
 
         private bool IsRepairHotkeyPressed()
         {
+            if (_repairToggleBind != null)
+                return _repairToggleBind.IsNewPressed;
+
             var input = MyAPIGateway.Input;
             return input != null && input.IsAnyCtrlKeyPressed() && input.IsNewKeyPressed(RepairToggleKey);
         }
@@ -676,6 +785,8 @@ namespace SafeZoneRepair
                 if (MyAPIGateway.Input == null || MyAPIGateway.Session == null)
                     return;
 
+                EnsureRhfBindingsAndTerminal();
+
                 if (MyAPIGateway.Gui == null)
                     return;
 
@@ -685,7 +796,7 @@ namespace SafeZoneRepair
                 if (IsHudHotkeyPressed())
                     ToggleHudForLocalContext();
 
-                if (IsRepairHotkeyPressed())
+                if (GetLocalControlledShipController() != null && IsRepairHotkeyPressed())
                     ToggleRepairForLocalContext();
             }
             catch (Exception ex)
