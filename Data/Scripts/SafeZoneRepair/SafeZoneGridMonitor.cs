@@ -1315,7 +1315,7 @@ namespace SafeZoneRepair
                         }
                     }
 
-                    bool needsRepair = Utils.NeedRepair(block, false) || isProjected;
+                    bool needsRepair = Utils.NeedRepairRobust(block, false) || isProjected;
                     LogRepair($"Checking block {Utils.BlockName(block)}: needsRepair={needsRepair}");
                     if (needsRepair)
                     {
@@ -1511,7 +1511,7 @@ namespace SafeZoneRepair
                 }
 
                 bool isProjected = Utils.IsProjected(block);
-                bool needsRepair = Utils.NeedRepair(block, false) || isProjected;
+                bool needsRepair = Utils.NeedRepairRobust(block, false) || isProjected;
                 bool alreadyInQueue = blocksInQueue.Contains(block);
 
                 if (needsRepair && !alreadyInQueue)
@@ -1738,7 +1738,7 @@ namespace SafeZoneRepair
 
             foreach (var block in blocks)
             {
-                if (block == null || Utils.IsProjected(block) || !Utils.NeedRepair(block, false))
+                if (block == null || Utils.IsProjected(block) || !Utils.NeedRepairRobust(block, false))
                     continue;
 
                 float blockCost = CalculateTotalRepairCost(block, zoneCfg);
@@ -1856,9 +1856,11 @@ namespace SafeZoneRepair
             }
 
             float localWeldingSpeed = GetWeldingSpeedForZone(currentZone);
-            float remainingBuildIntegrity = block.MaxIntegrity - block.BuildIntegrity;
+            float remainingBuildIntegrity = Math.Max(0f, block.MaxIntegrity - block.BuildIntegrity);
             bool hasDeformation = block.HasDeformation;
-            bool pureDeformationOnly = remainingBuildIntegrity <= 0.01f && hasDeformation;
+            int missingComponentsBefore = block.GetMissingComponentsTotalCount();
+            bool hasMissingComponents = missingComponentsBefore > 0;
+            bool pureDeformationOnly = remainingBuildIntegrity <= 0.01f && hasDeformation && !hasMissingComponents;
             float currentDamageBefore = block.CurrentDamage;
             float accumulatedDamageBefore = block.AccumulatedDamage;
             float buildIntegrityBefore = block.BuildIntegrity;
@@ -1872,16 +1874,16 @@ namespace SafeZoneRepair
                 if (repairAmount < 1f)
                     repairAmount = Math.Min(remainingBuildIntegrity, 1f);
             }
-            else if (hasDeformation)
+            else if (hasDeformation || hasMissingComponents)
             {
                 repairAmount = Math.Max(repairAmount, 1f);
             }
 
-            LogRepair($"repairAmount={repairAmount}, remainingBuildIntegrity={remainingBuildIntegrity}, BuildIntegrity={block.BuildIntegrity}, MaxIntegrity={block.MaxIntegrity}, HasDeformation={hasDeformation}, CurrentDamage={currentDamageBefore}, AccumulatedDamage={accumulatedDamageBefore}");
+            LogRepair($"repairAmount={repairAmount}, remainingBuildIntegrity={remainingBuildIntegrity}, BuildIntegrity={block.BuildIntegrity}, MaxIntegrity={block.MaxIntegrity}, HasDeformation={hasDeformation}, HasMissingComponents={hasMissingComponents}, MissingComponentsBefore={missingComponentsBefore}, CurrentDamage={currentDamageBefore}, AccumulatedDamage={accumulatedDamageBefore}");
 
-            if (repairAmount <= 0 && !hasDeformation)
+            if (repairAmount <= 0 && !hasDeformation && !hasMissingComponents)
             {
-                LogRepair($"repairAmount <= 0 and no deformation, removing block from queue");
+                LogRepair($"repairAmount <= 0 and block has no deformation or missing components, removing from queue");
                 blocksRepairQueue.Dequeue();
                 blocksInQueue.Remove(block);
                 blockRepairInfo.Remove(block);
@@ -1965,15 +1967,17 @@ namespace SafeZoneRepair
             float currentDamageAfter = block.CurrentDamage;
             float accumulatedDamageAfter = block.AccumulatedDamage;
             bool hasDeformationAfter = block.HasDeformation;
+            int missingComponentsAfter = block.GetMissingComponentsTotalCount();
             bool progressMade =
                 buildIntegrityAfter > buildIntegrityBefore + 0.001f ||
                 currentDamageAfter < currentDamageBefore - 0.001f ||
                 accumulatedDamageAfter < accumulatedDamageBefore - 0.001f ||
-                (hasDeformation && !hasDeformationAfter);
+                (hasDeformation && !hasDeformationAfter) ||
+                missingComponentsAfter < missingComponentsBefore;
 
             SendRepairNotificationToClients(block, false, 0, player.IdentityId);
 
-            if (block.MaxIntegrity - block.BuildIntegrity <= 0.01f && !block.HasDeformation)
+            if (!Utils.NeedRepairRobust(block, false))
             {
                 LogRepair($"Block fully repaired, removing from queue");
                 blocksRepairQueue.Dequeue();
