@@ -44,6 +44,7 @@ namespace SafeZoneRepair
         [ProtoMember(8)] public long EstimatedRepairCost;
         [ProtoMember(9)] public string CurrentRepairText;
         [ProtoMember(10)] public string RepairPhaseText;
+        [ProtoMember(11)] public string CurrentScanText;
     }
 
 

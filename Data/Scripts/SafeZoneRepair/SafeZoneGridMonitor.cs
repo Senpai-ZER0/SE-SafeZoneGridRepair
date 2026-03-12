@@ -83,8 +83,10 @@ namespace SafeZoneRepair
 
         // Флаг для предотвращения повторной регистрации обработчиков на клиенте
         private static bool _clientHandlersRegistered = false;
-        private RepairUiStateMessage _clientUiState = new RepairUiStateMessage { InRepairZone = false, ZoneName = "Repair Zone", RepairEnabled = false, StatusText = "Waiting for zone state", LastRepairText = "No repairs performed yet.", EstimatedRepairCost = 0 };
+        private RepairUiStateMessage _clientUiState = new RepairUiStateMessage { InRepairZone = false, ZoneName = "Repair Zone", RepairEnabled = false, StatusText = "Waiting for zone state", LastRepairText = "No repairs performed yet.", EstimatedRepairCost = 0, CurrentScanText = "Current scan: -" };
         private Dictionary<long, long> _lastControlledGridByPlayer = new Dictionary<long, long>();
+        private Dictionary<long, string> _currentScanBlockByPlayer = new Dictionary<long, string>();
+        private Dictionary<long, DateTime> _currentScanUntilByPlayer = new Dictionary<long, DateTime>();
         private bool _manualHudRequested = false;
         private bool _cockpitHudSuppressed = false;
         private bool _cockpitInteractiveRequested = false;
@@ -92,6 +94,7 @@ namespace SafeZoneRepair
         private static readonly MyKeys RepairToggleKey = MyKeys.R;
         private static readonly MyKeys CockpitHudSuppressKey = MyKeys.N;
         private static readonly MyKeys AdminMenuKey = MyKeys.O;
+        private static readonly MyKeys ForceRescanKey = MyKeys.L;
 
         private static bool _rhfBindsRegistered = false;
         private static bool _rhfTerminalPagesRegistered = false;
@@ -200,6 +203,8 @@ namespace SafeZoneRepair
                 _lastPlayerStatusTime.Clear();
                 _estimatedRepairCostCache.Clear();
                 _lastControlledGridByPlayer.Clear();
+                _currentScanBlockByPlayer.Clear();
+                _currentScanUntilByPlayer.Clear();
                 _manualHudRequested = false;
                 _cockpitInteractiveRequested = false;
 
@@ -580,7 +585,7 @@ namespace SafeZoneRepair
 
         private bool IsCockpitHudVisible()
         {
-            return true;
+            return !_cockpitHudSuppressed;
         }
 
         private bool IsCockpitInteractiveHudRequested()
@@ -737,6 +742,89 @@ namespace SafeZoneRepair
             catch (Exception ex)
             {
                 LogError($"ToggleRepairForLocalContext error: {ex}");
+            }
+        }
+
+        private bool IsForceRescanHotkeyPressed()
+        {
+            var input = MyAPIGateway.Input;
+            return input != null && input.IsAnyCtrlKeyPressed() && input.IsNewKeyPressed(ForceRescanKey);
+        }
+
+        private void ForceRescanForLocalContext(IMyCubeGrid sourceGrid = null)
+        {
+            try
+            {
+                var shipController = GetLocalControlledShipController();
+                IMyCubeGrid grid = shipController?.CubeGrid;
+
+                if (grid == null)
+                    return;
+
+                if (sourceGrid != null && sourceGrid.EntityId != grid.EntityId)
+                    return;
+
+                ForceRescanGrid(grid);
+            }
+            catch (Exception ex)
+            {
+                LogError($"ForceRescanForLocalContext error: {ex}");
+            }
+        }
+
+        private void ForceRescanGrid(IMyCubeGrid grid)
+        {
+            try
+            {
+                if (grid == null)
+                    return;
+
+                if (!MyAPIGateway.Multiplayer.IsServer)
+                {
+                    var msg = new TerminalActionMessage { GridEntityId = grid.EntityId, Action = "Rescan" };
+                    byte[] data = MyAPIGateway.Utilities.SerializeToBinary(msg);
+                    MyAPIGateway.Multiplayer.SendMessageToServer(TerminalActionSyncId, data);
+                    return;
+                }
+
+                var player = GetPlayerControllingGrid(grid);
+                long playerId = player?.IdentityId ?? 0;
+
+                RemoveGridFromQueue(grid);
+
+                var keysToRemove = new List<string>();
+                string prefix = grid.EntityId.ToString() + ":";
+                foreach (var key in _completedBlockKeys)
+                {
+                    if (!string.IsNullOrWhiteSpace(key) && key.StartsWith(prefix))
+                        keysToRemove.Add(key);
+                }
+
+                foreach (var key in keysToRemove)
+                    _completedBlockKeys.Remove(key);
+
+                InvalidateEstimatedRepairCostCache(playerId, grid.EntityId);
+
+                if (playerId != 0)
+                {
+                    _currentScanBlockByPlayer[playerId] = "Current scan: rescan queued";
+                    _currentScanUntilByPlayer[playerId] = DateTime.UtcNow.AddSeconds(8);
+                }
+
+                if (GridIsInSafeZone(grid))
+                {
+                    HandleGridInSafeZone(grid, playerId, grid.EntityId);
+                    SendTerminalStatusToPlayer(player, "Forced grid rescan queued", "Blue", 2500);
+                    SendRepairUiStateToPlayer(player, true, grid, GetSafeZoneForGrid(grid), "Repair ready");
+                }
+                else
+                {
+                    SendTerminalStatusToPlayer(player, "Rescan unavailable for current grid", "Red", 2500);
+                }
+            }
+            catch (Exception ex)
+            {
+                LogError($"ForceRescanGrid error: {ex}");
             }
         }
 
@@ -1047,6 +1135,9 @@ namespace SafeZoneRepair
 
                 if (GetLocalControlledShipController() != null && IsRepairHotkeyPressed())
                     ToggleRepairForLocalContext();
+
+                if (GetLocalControlledShipController() != null && IsForceRescanHotkeyPressed())
+                    ForceRescanForLocalContext();
 
                 if (IsAdminMenuHotkeyPressed())
                     ToggleAdminPanelForLocalContext();
@@ -2126,6 +2217,23 @@ namespace SafeZoneRepair
             return "Repair phase: idle";
         }
 
+        private string BuildCurrentScanTextForUi(IMyPlayer player, IMyCubeGrid grid)
+        {
+            if (player == null)
+                return "Current scan: -";
+
+            string text;
+            DateTime until;
+            if (_currentScanBlockByPlayer.TryGetValue(player.IdentityId, out text) &&
+                _currentScanUntilByPlayer.TryGetValue(player.IdentityId, out until) &&
+                DateTime.UtcNow < until)
+            {
+                return string.IsNullOrWhiteSpace(text) ? "Current scan: -" : text;
+            }
+
+            return "Current scan: -";
+        }
+
         private string TruncateHudBlockName(string text, int maxLength)
         {
             if (string.IsNullOrWhiteSpace(text) || text.Length <= maxLength)
@@ -2158,7 +2266,8 @@ namespace SafeZoneRepair
                 LastEventUtcTicks = DateTime.UtcNow.Ticks,
                 EstimatedRepairCost = estimatedRepairCost,
                 CurrentRepairText = inRepairZone ? BuildCurrentRepairTextForUi(player, grid) : "Current repair: -",
-                RepairPhaseText = inRepairZone ? BuildRepairPhaseForUi(player, grid) : "Repair phase: idle"
+                RepairPhaseText = inRepairZone ? BuildRepairPhaseForUi(player, grid) : "Repair phase: idle",
+                CurrentScanText = inRepairZone ? BuildCurrentScanTextForUi(player, grid) : "Current scan: -"
             };
 
             byte[] bytes = MyAPIGateway.Utilities.SerializeToBinary(msg);
@@ -2280,8 +2389,8 @@ namespace SafeZoneRepair
                 cfg.ZoneName = string.IsNullOrWhiteSpace(msg.ZoneName) ? GetSafeZoneDefaultName(zone) : msg.ZoneName.Trim();
                 cfg.DisplayName = cfg.ZoneName;
                 cfg.Enabled = msg.Enabled;
-                cfg.WeldingSpeed = Math.Max(0.01f, msg.WeldingSpeed);
-                cfg.CostModifier = Math.Max(0f, msg.CostModifier);
+                cfg.WeldingSpeed = (float)Math.Round(Math.Max(0.001f, msg.WeldingSpeed), 2);
+                cfg.CostModifier = (float)Math.Round(Math.Max(0.001f, msg.CostModifier), 2);
                 cfg.AllowProjections = msg.AllowProjections;
                 cfg.ZoneEntityId = zone.EntityId;
                 NormalizeZoneConfig(cfg);
@@ -2386,6 +2495,8 @@ namespace SafeZoneRepair
                     ToggleHudForLocalContext(grid);
                 else if (msg.Action == "ToggleRepairLocal")
                     ToggleRepairForLocalContext(grid);
+                else if (msg.Action == "Rescan")
+                    ForceRescanGrid(grid);
             }
             catch (Exception ex)
             {

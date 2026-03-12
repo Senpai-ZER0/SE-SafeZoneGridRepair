@@ -18,11 +18,13 @@ namespace SafeZoneRepair
         private static Label _zoneLabel;
         private static Label _modeLabel;
         private static Label _statusLabel;
+        private static Label _currentScanLabel;
         private static Label _currentRepairLabel;
         private static Label _phaseLabel;
         private static Label _repairLabel;
         private static Label _hintLabel;
         private static BorderedButton _toggleRepairButton;
+        private static BorderedButton _forceRescanButton;
         private static BorderedButton _closeMenuButton;
 
         private static BorderBox _adminPanel;
@@ -42,6 +44,10 @@ namespace SafeZoneRepair
         private static BorderedButton _adminApplyButton;
         private static BorderedButton _adminLoadConfigButton;
         private static BorderedButton _adminCloseButton;
+        private static BorderedButton _adminSpeedMinusButton;
+        private static BorderedButton _adminSpeedPlusButton;
+        private static BorderedButton _adminCostMinusButton;
+        private static BorderedButton _adminCostPlusButton;
         private static bool _adminPanelFieldsDirty = true;
 
         private static string _stickyLastRepairText;
@@ -79,6 +85,7 @@ namespace SafeZoneRepair
                 "Zone: -",
                 "Repair mode: -",
                 "Status: Waiting for zone state",
+                "Current scan: -",
                 "Current repair: -",
                 "Repair phase: idle",
                 "Estimated cost: 0 SC",
@@ -112,11 +119,13 @@ namespace SafeZoneRepair
             _zoneLabel = null;
             _modeLabel = null;
             _statusLabel = null;
+            _currentScanLabel = null;
             _currentRepairLabel = null;
             _phaseLabel = null;
             _repairLabel = null;
             _hintLabel = null;
             _toggleRepairButton = null;
+            _forceRescanButton = null;
             _closeMenuButton = null;
             _adminPanel = null;
             _adminTitleLabel = null;
@@ -135,6 +144,10 @@ namespace SafeZoneRepair
             _adminApplyButton = null;
             _adminLoadConfigButton = null;
             _adminCloseButton = null;
+            _adminSpeedMinusButton = null;
+            _adminSpeedPlusButton = null;
+            _adminCostMinusButton = null;
+            _adminCostPlusButton = null;
             _adminPanel = null;
             _adminTitleLabel = null;
             _adminZoneLabel = null;
@@ -175,11 +188,13 @@ namespace SafeZoneRepair
             _zoneLabel = null;
             _modeLabel = null;
             _statusLabel = null;
+            _currentScanLabel = null;
             _currentRepairLabel = null;
             _phaseLabel = null;
             _repairLabel = null;
             _hintLabel = null;
             _toggleRepairButton = null;
+            _forceRescanButton = null;
             _closeMenuButton = null;
 
             _stickyLastRepairText = null;
@@ -213,16 +228,21 @@ namespace SafeZoneRepair
             _zoneLabel = CreateLabel(new Vector2(24f, -27f), new Vector2(560f, 22f), 0.88f);
             _modeLabel = CreateLabel(new Vector2(24f, -61f), new Vector2(560f, 22f), 0.88f);
             _statusLabel = CreateLabel(new Vector2(24f, -89f), new Vector2(560f, 22f), 0.88f);
-            _currentRepairLabel = CreateLabel(new Vector2(24f, -117f), new Vector2(560f, 28f), 0.80f, TextBuilderModes.Wrapped);
-            _phaseLabel = CreateLabel(new Vector2(24f, -145f), new Vector2(560f, 22f), 0.78f);
-            _repairLabel = CreateLabel(new Vector2(24f, -171f), new Vector2(560f, 24f), 0.84f);
-            _hintLabel = CreateLabel(new Vector2(24f, -199f), new Vector2(560f, 44f), 0.78f, TextBuilderModes.Wrapped);
+            _currentScanLabel = CreateLabel(new Vector2(24f, -117f), new Vector2(560f, 22f), 0.80f);
+            _currentRepairLabel = CreateLabel(new Vector2(24f, -145f), new Vector2(560f, 28f), 0.80f, TextBuilderModes.Wrapped);
+            _phaseLabel = CreateLabel(new Vector2(24f, -173f), new Vector2(560f, 22f), 0.78f);
+            _repairLabel = CreateLabel(new Vector2(24f, -199f), new Vector2(560f, 24f), 0.84f);
+            _hintLabel = CreateLabel(new Vector2(24f, -227f), new Vector2(560f, 44f), 0.78f, TextBuilderModes.Wrapped);
 
-            _toggleRepairButton = CreateMenuButton(new Vector2(24f, -254f), new Vector2(170f, 36f), "Toggle Repair");
-            _closeMenuButton = CreateMenuButton(new Vector2(404f, -254f), new Vector2(170f, 36f), "Close Menu");
+            _toggleRepairButton = CreateMenuButton(new Vector2(24f, -282f), new Vector2(160f, 36f), "Toggle Repair");
+            _forceRescanButton = CreateMenuButton(new Vector2(202f, -282f), new Vector2(170f, 36f), "Force Rescan");
+            _closeMenuButton = CreateMenuButton(new Vector2(390f, -282f), new Vector2(170f, 36f), "Close Menu");
 
             if (_toggleRepairButton != null)
                 _toggleRepairButton.MouseInput.LeftClicked += ToggleRepairButtonClicked;
+
+            if (_forceRescanButton != null)
+                _forceRescanButton.MouseInput.LeftClicked += ForceRescanButtonClicked;
 
             if (_closeMenuButton != null)
                 _closeMenuButton.MouseInput.LeftClicked += CloseMenuButtonClicked;
@@ -291,11 +311,15 @@ namespace SafeZoneRepair
             _adminProjLabel = CreateAdminLabel(new Vector2(18f, -326f), new Vector2(140f, 24f), 0.80f);
 
             _adminZoneNameField = CreateAdminTextField(new Vector2(170f, -112f), new Vector2(320f, 34f));
-            _adminWeldingSpeedField = CreateAdminTextField(new Vector2(170f, -216f), new Vector2(140f, 34f));
-            _adminCostModifierField = CreateAdminTextField(new Vector2(170f, -268f), new Vector2(140f, 34f));
+            _adminWeldingSpeedField = CreateAdminTextField(new Vector2(170f, -216f), new Vector2(120f, 34f));
+            _adminCostModifierField = CreateAdminTextField(new Vector2(170f, -268f), new Vector2(120f, 34f));
 
             _adminToggleEnabledButton = CreateAdminButton(new Vector2(170f, -164f), new Vector2(140f, 36f), "Toggle");
             _adminToggleProjectionsButton = CreateAdminButton(new Vector2(170f, -320f), new Vector2(140f, 36f), "Toggle");
+            _adminSpeedMinusButton = CreateAdminButton(new Vector2(302f, -216f), new Vector2(56f, 34f), "-");
+            _adminSpeedPlusButton = CreateAdminButton(new Vector2(366f, -216f), new Vector2(56f, 34f), "+");
+            _adminCostMinusButton = CreateAdminButton(new Vector2(302f, -268f), new Vector2(56f, 34f), "-");
+            _adminCostPlusButton = CreateAdminButton(new Vector2(366f, -268f), new Vector2(56f, 34f), "+");
             _adminApplyButton = CreateAdminButton(new Vector2(18f, -364f), new Vector2(140f, 34f), "Apply");
             _adminLoadConfigButton = CreateAdminButton(new Vector2(176f, -364f), new Vector2(140f, 34f), "Load config");
             _adminCloseButton = CreateAdminButton(new Vector2(350f, -364f), new Vector2(140f, 34f), "Close");
@@ -311,6 +335,14 @@ namespace SafeZoneRepair
                 _adminToggleEnabledButton.MouseInput.LeftClicked += AdminToggleEnabledClicked;
             if (_adminToggleProjectionsButton != null)
                 _adminToggleProjectionsButton.MouseInput.LeftClicked += AdminToggleProjectionsClicked;
+            if (_adminSpeedMinusButton != null)
+                _adminSpeedMinusButton.MouseInput.LeftClicked += AdminSpeedMinusClicked;
+            if (_adminSpeedPlusButton != null)
+                _adminSpeedPlusButton.MouseInput.LeftClicked += AdminSpeedPlusClicked;
+            if (_adminCostMinusButton != null)
+                _adminCostMinusButton.MouseInput.LeftClicked += AdminCostMinusClicked;
+            if (_adminCostPlusButton != null)
+                _adminCostPlusButton.MouseInput.LeftClicked += AdminCostPlusClicked;
             if (_adminApplyButton != null)
                 _adminApplyButton.MouseInput.LeftClicked += AdminApplyClicked;
             if (_adminLoadConfigButton != null)
@@ -411,9 +443,9 @@ namespace SafeZoneRepair
                 if (_adminZoneNameField != null && !_adminZoneNameField.InputOpen)
                     _adminZoneNameField.Text = state.ZoneName ?? string.Empty;
                 if (_adminWeldingSpeedField != null && !_adminWeldingSpeedField.InputOpen)
-                    _adminWeldingSpeedField.Text = state.WeldingSpeed.ToString("0.###", System.Globalization.CultureInfo.InvariantCulture);
+                    _adminWeldingSpeedField.Text = state.WeldingSpeed.ToString("0.00", System.Globalization.CultureInfo.InvariantCulture);
                 if (_adminCostModifierField != null && !_adminCostModifierField.InputOpen)
-                    _adminCostModifierField.Text = state.CostModifier.ToString("0.###", System.Globalization.CultureInfo.InvariantCulture);
+                    _adminCostModifierField.Text = state.CostModifier.ToString("0.00", System.Globalization.CultureInfo.InvariantCulture);
                 _adminPanelFieldsDirty = false;
             }
             if (_adminToggleEnabledButton != null)
@@ -433,7 +465,35 @@ namespace SafeZoneRepair
                 return false;
 
             text = text.Trim().Replace(',', '.');
-            return float.TryParse(text, System.Globalization.NumberStyles.Float, System.Globalization.CultureInfo.InvariantCulture, out value);
+            if (!float.TryParse(text, System.Globalization.NumberStyles.Float, System.Globalization.CultureInfo.InvariantCulture, out value))
+                return false;
+
+            if (value < 0.001f)
+                return false;
+
+            value = NormalizeAdminFloat(value);
+            return true;
+        }
+
+        private float NormalizeAdminFloat(float value)
+        {
+            return (float)Math.Round(Math.Max(0.001f, value), 2);
+        }
+
+        private void SetAdminFloatField(TextField field, float value)
+        {
+            if (field != null)
+                field.Text = NormalizeAdminFloat(value).ToString("0.00", System.Globalization.CultureInfo.InvariantCulture);
+        }
+
+        private void AdjustAdminFloatField(TextField field, float delta)
+        {
+            float value;
+            if (!TryParseAdminFloat(field, out value))
+                value = field == _adminCostModifierField ? _adminZoneState.CostModifier : _adminZoneState.WeldingSpeed;
+
+            value = NormalizeAdminFloat(value + delta);
+            SetAdminFloatField(field, value);
         }
 
         private void AdminToggleEnabledClicked(object sender, EventArgs e)
@@ -448,6 +508,26 @@ namespace SafeZoneRepair
             UpdateAdminPanelState();
         }
 
+        private void AdminSpeedMinusClicked(object sender, EventArgs e)
+        {
+            AdjustAdminFloatField(_adminWeldingSpeedField, -0.1f);
+        }
+
+        private void AdminSpeedPlusClicked(object sender, EventArgs e)
+        {
+            AdjustAdminFloatField(_adminWeldingSpeedField, 0.1f);
+        }
+
+        private void AdminCostMinusClicked(object sender, EventArgs e)
+        {
+            AdjustAdminFloatField(_adminCostModifierField, -0.1f);
+        }
+
+        private void AdminCostPlusClicked(object sender, EventArgs e)
+        {
+            AdjustAdminFloatField(_adminCostModifierField, 0.1f);
+        }
+
         private void AdminApplyClicked(object sender, EventArgs e)
         {
             try
@@ -457,11 +537,13 @@ namespace SafeZoneRepair
                 if (!TryParseAdminFloat(_adminWeldingSpeedField, out speed) || !TryParseAdminFloat(_adminCostModifierField, out cost))
                 {
                     _adminZoneState.Success = false;
-                    _adminZoneState.ErrorText = "Invalid numeric value.";
+                    _adminZoneState.ErrorText = "Values must be >= 0.001";
                     UpdateAdminPanelState();
                     return;
                 }
 
+                speed = NormalizeAdminFloat(speed);
+                cost = NormalizeAdminFloat(cost);
                 string zoneName = _adminZoneNameField?.Text.ToString() ?? _adminZoneState.ZoneName ?? string.Empty;
                 SendAdminZoneConfigUpdateFromClient(zoneName, _adminZoneState.Enabled, speed, cost, _adminZoneState.AllowProjections);
             }
@@ -492,6 +574,9 @@ namespace SafeZoneRepair
                 _toggleRepairButton.Text = repairEnabled ? "Disable repair" : "Enable repair";
             }
 
+            if (_forceRescanButton != null)
+                _forceRescanButton.Visible = visible;
+
             if (_closeMenuButton != null)
                 _closeMenuButton.Visible = visible;
         }
@@ -505,6 +590,18 @@ namespace SafeZoneRepair
             catch (Exception ex)
             {
                 LogError("ToggleRepairButtonClicked error: " + ex);
+            }
+        }
+
+        private void ForceRescanButtonClicked(object sender, EventArgs e)
+        {
+            try
+            {
+                ForceRescanForLocalContext();
+            }
+            catch (Exception ex)
+            {
+                LogError("ForceRescanButtonClicked error: " + ex);
             }
         }
 
@@ -522,7 +619,7 @@ namespace SafeZoneRepair
             }
         }
 
-        private void SetHudLines(string title, string zone, string mode, string status, string currentRepair, string phase, string cost, string repair)
+        private void SetHudLines(string title, string zone, string mode, string status, string currentScan, string currentRepair, string phase, string cost, string repair)
         {
             if (_titleLabel != null)
                 _titleLabel.Text = title ?? string.Empty;
@@ -535,6 +632,9 @@ namespace SafeZoneRepair
 
             if (_statusLabel != null)
                 _statusLabel.Text = status ?? string.Empty;
+
+            if (_currentScanLabel != null)
+                _currentScanLabel.Text = currentScan ?? string.Empty;
 
             if (_currentRepairLabel != null)
                 _currentRepairLabel.Text = currentRepair ?? string.Empty;
@@ -603,6 +703,7 @@ namespace SafeZoneRepair
 				repairText = FormatLastRepair(_stickyLastRepairText);
 
             long estimatedRepairCost = state.EstimatedRepairCost < 0 ? 0 : state.EstimatedRepairCost;
+            string currentScanText = string.IsNullOrWhiteSpace(state.CurrentScanText) ? "Current scan: -" : state.CurrentScanText.Trim();
             string currentRepairText = string.IsNullOrWhiteSpace(state.CurrentRepairText) ? "Current repair: -" : state.CurrentRepairText.Trim();
             string phaseText = string.IsNullOrWhiteSpace(state.RepairPhaseText) ? "Repair phase: idle" : state.RepairPhaseText.Trim();
             string costText = string.Format("Estimated cost: {0} SC", estimatedRepairCost);
@@ -620,6 +721,7 @@ namespace SafeZoneRepair
 				"Zone: " + zoneName,
 				modeText,
 				statusText,
+                currentScanText,
                 currentRepairText,
                 phaseText,
                 costText,
@@ -644,6 +746,9 @@ namespace SafeZoneRepair
 				else
 					_statusLabel.Format = new GlyphFormat(new Color(210, 225, 240), TextAlignment.Left, 0.88f);
 			}
+
+			if (_currentScanLabel != null)
+                _currentScanLabel.Format = new GlyphFormat(new Color(180, 205, 230), TextAlignment.Left, 0.80f);
 
 			if (_currentRepairLabel != null)
                 _currentRepairLabel.Format = new GlyphFormat(new Color(140, 190, 255), TextAlignment.Left, 0.80f);
