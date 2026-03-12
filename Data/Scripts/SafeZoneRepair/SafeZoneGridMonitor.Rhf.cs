@@ -1,4 +1,4 @@
-using System;
+﻿using System;
 using Sandbox.ModAPI;
 using RichHudFramework.Client;
 using RichHudFramework.UI;
@@ -25,6 +25,25 @@ namespace SafeZoneRepair
         private static BorderedButton _toggleRepairButton;
         private static BorderedButton _closeMenuButton;
 
+        private static BorderBox _adminPanel;
+        private static Label _adminTitleLabel;
+        private static Label _adminZoneLabel;
+        private static Label _adminStatusLabel;
+        private static Label _adminNameLabel;
+        private static Label _adminEnabledLabel;
+        private static Label _adminSpeedLabel;
+        private static Label _adminCostLabel;
+        private static Label _adminProjLabel;
+        private static TextField _adminZoneNameField;
+        private static TextField _adminWeldingSpeedField;
+        private static TextField _adminCostModifierField;
+        private static BorderedButton _adminToggleEnabledButton;
+        private static BorderedButton _adminToggleProjectionsButton;
+        private static BorderedButton _adminApplyButton;
+        private static BorderedButton _adminLoadConfigButton;
+        private static BorderedButton _adminCloseButton;
+        private static bool _adminPanelFieldsDirty = true;
+
         private static string _stickyLastRepairText;
         private static DateTime _stickyLastRepairUntil = DateTime.MinValue;
         private const double StickyLastRepairSeconds = 12.0;
@@ -47,10 +66,13 @@ namespace SafeZoneRepair
             _richHudReady = true;
             RhfLog("HudInit called");
             EnsureHudCreated();
+            EnsureAdminPanelCreated();
             EnsureRhfBindingsAndTerminal();
 
             if (_panel != null)
                 _panel.Visible = false;
+            if (_adminPanel != null)
+                _adminPanel.Visible = false;
 
             SetHudLines(
                 "Safe Zone Repair",
@@ -96,6 +118,40 @@ namespace SafeZoneRepair
             _hintLabel = null;
             _toggleRepairButton = null;
             _closeMenuButton = null;
+            _adminPanel = null;
+            _adminTitleLabel = null;
+            _adminZoneLabel = null;
+            _adminStatusLabel = null;
+            _adminNameLabel = null;
+            _adminEnabledLabel = null;
+            _adminSpeedLabel = null;
+            _adminCostLabel = null;
+            _adminProjLabel = null;
+            _adminZoneNameField = null;
+            _adminWeldingSpeedField = null;
+            _adminCostModifierField = null;
+            _adminToggleEnabledButton = null;
+            _adminToggleProjectionsButton = null;
+            _adminApplyButton = null;
+            _adminLoadConfigButton = null;
+            _adminCloseButton = null;
+            _adminPanel = null;
+            _adminTitleLabel = null;
+            _adminZoneLabel = null;
+            _adminStatusLabel = null;
+            _adminNameLabel = null;
+            _adminEnabledLabel = null;
+            _adminSpeedLabel = null;
+            _adminCostLabel = null;
+            _adminProjLabel = null;
+            _adminZoneNameField = null;
+            _adminWeldingSpeedField = null;
+            _adminCostModifierField = null;
+            _adminToggleEnabledButton = null;
+            _adminToggleProjectionsButton = null;
+            _adminApplyButton = null;
+            _adminLoadConfigButton = null;
+            _adminCloseButton = null;
             _toggleRepairButton = null;
             _closeMenuButton = null;
 
@@ -209,6 +265,223 @@ namespace SafeZoneRepair
             button.BorderThickness = 1f;
 
             return button;
+        }
+
+        private void EnsureAdminPanelCreated()
+        {
+            if (_adminPanel != null)
+                return;
+
+            _adminPanel = new BorderBox(RichHudFramework.UI.Client.HudMain.HighDpiRoot)
+            {
+                ParentAlignment = ParentAlignments.InnerTopLeft,
+                Offset = new Vector2(20f, -20f),
+                Size = new Vector2(520f, 412f),
+                Color = new Color(8, 14, 20, 225),
+                Visible = false
+            };
+
+            _adminTitleLabel = CreateAdminLabel(new Vector2(18f, -14f), new Vector2(480f, 24f), 1.0f);
+            _adminZoneLabel = CreateAdminLabel(new Vector2(18f, -44f), new Vector2(480f, 20f), 0.82f);
+            _adminStatusLabel = CreateAdminLabel(new Vector2(18f, -68f), new Vector2(480f, 34f), 0.74f, TextBuilderModes.Wrapped);
+            _adminNameLabel = CreateAdminLabel(new Vector2(18f, -118f), new Vector2(140f, 24f), 0.80f);
+            _adminEnabledLabel = CreateAdminLabel(new Vector2(18f, -170f), new Vector2(140f, 24f), 0.80f);
+            _adminSpeedLabel = CreateAdminLabel(new Vector2(18f, -222f), new Vector2(140f, 24f), 0.80f);
+            _adminCostLabel = CreateAdminLabel(new Vector2(18f, -274f), new Vector2(140f, 24f), 0.80f);
+            _adminProjLabel = CreateAdminLabel(new Vector2(18f, -326f), new Vector2(140f, 24f), 0.80f);
+
+            _adminZoneNameField = CreateAdminTextField(new Vector2(170f, -112f), new Vector2(320f, 34f));
+            _adminWeldingSpeedField = CreateAdminTextField(new Vector2(170f, -216f), new Vector2(140f, 34f));
+            _adminCostModifierField = CreateAdminTextField(new Vector2(170f, -268f), new Vector2(140f, 34f));
+
+            _adminToggleEnabledButton = CreateAdminButton(new Vector2(170f, -164f), new Vector2(140f, 36f), "Toggle");
+            _adminToggleProjectionsButton = CreateAdminButton(new Vector2(170f, -320f), new Vector2(140f, 36f), "Toggle");
+            _adminApplyButton = CreateAdminButton(new Vector2(18f, -364f), new Vector2(140f, 34f), "Apply");
+            _adminLoadConfigButton = CreateAdminButton(new Vector2(176f, -364f), new Vector2(140f, 34f), "Load config");
+            _adminCloseButton = CreateAdminButton(new Vector2(350f, -364f), new Vector2(140f, 34f), "Close");
+
+            if (_adminZoneNameField != null)
+                _adminZoneNameField.CharFilterFunc = ch => ch >= 32 && ch < 127;
+            if (_adminWeldingSpeedField != null)
+                _adminWeldingSpeedField.CharFilterFunc = ch => char.IsDigit(ch) || ch == '.' || ch == ',' || ch == '-';
+            if (_adminCostModifierField != null)
+                _adminCostModifierField.CharFilterFunc = ch => char.IsDigit(ch) || ch == '.' || ch == ',' || ch == '-';
+
+            if (_adminToggleEnabledButton != null)
+                _adminToggleEnabledButton.MouseInput.LeftClicked += AdminToggleEnabledClicked;
+            if (_adminToggleProjectionsButton != null)
+                _adminToggleProjectionsButton.MouseInput.LeftClicked += AdminToggleProjectionsClicked;
+            if (_adminApplyButton != null)
+                _adminApplyButton.MouseInput.LeftClicked += AdminApplyClicked;
+            if (_adminLoadConfigButton != null)
+                _adminLoadConfigButton.MouseInput.LeftClicked += AdminLoadConfigClicked;
+            if (_adminCloseButton != null)
+                _adminCloseButton.MouseInput.LeftClicked += AdminCloseClicked;
+
+            _adminPanelFieldsDirty = true;
+            UpdateAdminPanelState();
+        }
+
+        private Label CreateAdminLabel(Vector2 offset, Vector2 size, float textSize, TextBuilderModes builderMode = TextBuilderModes.Lined)
+        {
+            return new Label(_adminPanel)
+            {
+                ParentAlignment = ParentAlignments.InnerTopLeft,
+                Offset = offset,
+                Size = size,
+                AutoResize = false,
+                VertCenterText = false,
+                BuilderMode = builderMode,
+                Format = new GlyphFormat(new Color(220, 230, 240), TextAlignment.Left, textSize)
+            };
+        }
+
+        private TextField CreateAdminTextField(Vector2 offset, Vector2 size)
+        {
+            var field = new TextField(_adminPanel)
+            {
+                ParentAlignment = ParentAlignments.InnerTopLeft,
+                Offset = offset,
+                Size = size,
+                EnableEditing = true,
+                AutoResize = false
+            };
+            field.Format = new GlyphFormat(Color.White, TextAlignment.Left, 0.78f);
+            field.Color = new Color(24, 40, 54, 230);
+            field.BorderColor = new Color(110, 140, 170, 230);
+            return field;
+        }
+
+        private BorderedButton CreateAdminButton(Vector2 offset, Vector2 size, string text)
+        {
+            var button = new BorderedButton(_adminPanel)
+            {
+                ParentAlignment = ParentAlignments.InnerTopLeft,
+                Offset = offset,
+                Size = size,
+                Text = text,
+                Visible = true
+            };
+            button.Format = new GlyphFormat(Color.White, TextAlignment.Center, 0.76f);
+            button.Color = new Color(24, 40, 54, 230);
+            button.HighlightColor = new Color(70, 110, 145, 230);
+            button.FocusColor = new Color(120, 180, 210, 230);
+            button.BorderColor = new Color(110, 140, 170, 230);
+            button.BorderThickness = 1f;
+            return button;
+        }
+
+
+        private void MarkAdminPanelDirty()
+        {
+            _adminPanelFieldsDirty = true;
+        }
+
+        private void UpdateAdminPanelState()
+        {
+            if (_adminPanel == null)
+                return;
+
+            bool visible = _adminPanelRequested;
+            _adminPanel.Visible = visible;
+            if (!visible)
+                return;
+
+            var state = _adminZoneState ?? new AdminZoneConfigStateMessage();
+            if (_adminTitleLabel != null)
+                _adminTitleLabel.Text = "Safe Zone Admin";
+            if (_adminZoneLabel != null)
+                _adminZoneLabel.Text = string.IsNullOrWhiteSpace(state.ZoneName) ? "Zone: -" : "Zone: " + state.ZoneName;
+            if (_adminStatusLabel != null)
+                _adminStatusLabel.Text = state.Success
+                    ? "Edit the zone values below, then press Apply. Load config restores the current server configuration."
+                    : (string.IsNullOrWhiteSpace(state.ErrorText) ? "Admin panel unavailable." : state.ErrorText);
+            if (_adminNameLabel != null)
+                _adminNameLabel.Text = "Zone name";
+            if (_adminEnabledLabel != null)
+                _adminEnabledLabel.Text = "Repair enabled";
+            if (_adminSpeedLabel != null)
+                _adminSpeedLabel.Text = "Welding speed";
+            if (_adminCostLabel != null)
+                _adminCostLabel.Text = "Cost modifier";
+            if (_adminProjLabel != null)
+                _adminProjLabel.Text = "Allow projections";
+            if (_adminPanelFieldsDirty)
+            {
+                if (_adminZoneNameField != null && !_adminZoneNameField.InputOpen)
+                    _adminZoneNameField.Text = state.ZoneName ?? string.Empty;
+                if (_adminWeldingSpeedField != null && !_adminWeldingSpeedField.InputOpen)
+                    _adminWeldingSpeedField.Text = state.WeldingSpeed.ToString("0.###", System.Globalization.CultureInfo.InvariantCulture);
+                if (_adminCostModifierField != null && !_adminCostModifierField.InputOpen)
+                    _adminCostModifierField.Text = state.CostModifier.ToString("0.###", System.Globalization.CultureInfo.InvariantCulture);
+                _adminPanelFieldsDirty = false;
+            }
+            if (_adminToggleEnabledButton != null)
+                _adminToggleEnabledButton.Text = state.Enabled ? "Enabled" : "Disabled";
+            if (_adminToggleProjectionsButton != null)
+                _adminToggleProjectionsButton.Text = state.AllowProjections ? "Allowed" : "Blocked";
+        }
+
+        private bool TryParseAdminFloat(TextField field, out float value)
+        {
+            value = 0f;
+            if (field == null)
+                return false;
+
+            string text = field.Text.ToString();
+            if (string.IsNullOrWhiteSpace(text))
+                return false;
+
+            text = text.Trim().Replace(',', '.');
+            return float.TryParse(text, System.Globalization.NumberStyles.Float, System.Globalization.CultureInfo.InvariantCulture, out value);
+        }
+
+        private void AdminToggleEnabledClicked(object sender, EventArgs e)
+        {
+            _adminZoneState.Enabled = !_adminZoneState.Enabled;
+            UpdateAdminPanelState();
+        }
+
+        private void AdminToggleProjectionsClicked(object sender, EventArgs e)
+        {
+            _adminZoneState.AllowProjections = !_adminZoneState.AllowProjections;
+            UpdateAdminPanelState();
+        }
+
+        private void AdminApplyClicked(object sender, EventArgs e)
+        {
+            try
+            {
+                float speed;
+                float cost;
+                if (!TryParseAdminFloat(_adminWeldingSpeedField, out speed) || !TryParseAdminFloat(_adminCostModifierField, out cost))
+                {
+                    _adminZoneState.Success = false;
+                    _adminZoneState.ErrorText = "Invalid numeric value.";
+                    UpdateAdminPanelState();
+                    return;
+                }
+
+                string zoneName = _adminZoneNameField?.Text.ToString() ?? _adminZoneState.ZoneName ?? string.Empty;
+                SendAdminZoneConfigUpdateFromClient(zoneName, _adminZoneState.Enabled, speed, cost, _adminZoneState.AllowProjections);
+            }
+            catch (Exception ex)
+            {
+                LogError("AdminApplyClicked error: " + ex);
+            }
+        }
+
+        private void AdminLoadConfigClicked(object sender, EventArgs e)
+        {
+            MarkAdminPanelDirty();
+            RequestAdminZoneConfig(true);
+        }
+
+        private void AdminCloseClicked(object sender, EventArgs e)
+        {
+            _adminPanelRequested = false;
+            RefreshUiCursorState();
+            UpdateAdminPanelState();
         }
 
         private void SetInteractiveMenuVisible(bool visible, bool repairEnabled)
@@ -384,10 +657,14 @@ namespace SafeZoneRepair
 
         private void HideHud()
         {
-            SetInteractiveCursorEnabled(false);
+            if (!_adminPanelRequested)
+                SetInteractiveCursorEnabled(false);
 
             if (_panel != null)
                 _panel.Visible = false;
+
+            if (_adminPanel != null)
+                _adminPanel.Visible = _adminPanelRequested;
         }
 		
 		private void ShowHud()

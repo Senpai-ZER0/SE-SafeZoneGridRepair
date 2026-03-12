@@ -64,6 +64,9 @@ namespace SafeZoneRepair
         public const ushort TerminalActionSyncId = 2915;
         public const ushort TerminalStatusSyncId = 2916;
         public const ushort RepairUiStateSyncId = 2917;
+        public const ushort AdminZoneConfigRequestSyncId = 2918;
+        public const ushort AdminZoneConfigUpdateSyncId = 2919;
+        public const ushort AdminZoneConfigStateSyncId = 2920;
 
         private HashSet<string> _completedBlockKeys = new HashSet<string>(); // Ключи завершённых блоков (gridId:position)
 
@@ -88,6 +91,7 @@ namespace SafeZoneRepair
         private static readonly MyKeys HudToggleKey = MyKeys.J;
         private static readonly MyKeys RepairToggleKey = MyKeys.R;
         private static readonly MyKeys CockpitHudSuppressKey = MyKeys.N;
+        private static readonly MyKeys AdminMenuKey = MyKeys.O;
 
         private static bool _rhfBindsRegistered = false;
         private static bool _rhfTerminalPagesRegistered = false;
@@ -97,6 +101,9 @@ namespace SafeZoneRepair
         private static TerminalPageCategory _rhfTerminalCategory;
         private static RebindPage _rhfKeybindPage;
         private static TextPage _rhfOverviewPage;
+
+        private bool _adminPanelRequested = false;
+        private AdminZoneConfigStateMessage _adminZoneState = new AdminZoneConfigStateMessage();
 
         private sealed class EstimatedRepairCostCacheEntry
         {
@@ -121,6 +128,8 @@ namespace SafeZoneRepair
                 if (MyAPIGateway.Multiplayer.IsServer)
                 {
                     MyAPIGateway.Multiplayer.RegisterMessageHandler(TerminalActionSyncId, HandleTerminalAction);
+                    MyAPIGateway.Multiplayer.RegisterMessageHandler(AdminZoneConfigRequestSyncId, HandleAdminZoneConfigRequest);
+                    MyAPIGateway.Multiplayer.RegisterMessageHandler(AdminZoneConfigUpdateSyncId, HandleAdminZoneConfigUpdate);
                     MyAPIGateway.Entities.OnEntityAdd += OnEntityAdded;
                     MyAPIGateway.Utilities.MessageEntered += Utilities_MessageEntered;
                     LogGeneral("Loaded on server");
@@ -138,10 +147,12 @@ namespace SafeZoneRepair
                     MyAPIGateway.Multiplayer.UnregisterMessageHandler(SyncId, HandleRepairNotification);
                     MyAPIGateway.Multiplayer.UnregisterMessageHandler(TerminalStatusSyncId, HandleTerminalStatus);
                     MyAPIGateway.Multiplayer.UnregisterMessageHandler(RepairUiStateSyncId, HandleRepairUiState);
+                    MyAPIGateway.Multiplayer.UnregisterMessageHandler(AdminZoneConfigStateSyncId, HandleAdminZoneConfigState);
 
                     MyAPIGateway.Multiplayer.RegisterMessageHandler(SyncId, HandleRepairNotification);
                     MyAPIGateway.Multiplayer.RegisterMessageHandler(TerminalStatusSyncId, HandleTerminalStatus);
                     MyAPIGateway.Multiplayer.RegisterMessageHandler(RepairUiStateSyncId, HandleRepairUiState);
+                    MyAPIGateway.Multiplayer.RegisterMessageHandler(AdminZoneConfigStateSyncId, HandleAdminZoneConfigState);
                     _clientHandlersRegistered = true;
                 }
             }
@@ -158,6 +169,8 @@ namespace SafeZoneRepair
                 if (MyAPIGateway.Multiplayer.IsServer)
                 {
                     MyAPIGateway.Multiplayer.UnregisterMessageHandler(TerminalActionSyncId, HandleTerminalAction);
+                    MyAPIGateway.Multiplayer.UnregisterMessageHandler(AdminZoneConfigRequestSyncId, HandleAdminZoneConfigRequest);
+                    MyAPIGateway.Multiplayer.UnregisterMessageHandler(AdminZoneConfigUpdateSyncId, HandleAdminZoneConfigUpdate);
                     MyAPIGateway.Entities.OnEntityAdd -= OnEntityAdded;
                     MyAPIGateway.Utilities.MessageEntered -= Utilities_MessageEntered;
                     if (MyAPIGateway.Utilities != null)
@@ -169,6 +182,7 @@ namespace SafeZoneRepair
                     MyAPIGateway.Multiplayer.UnregisterMessageHandler(SyncId, HandleRepairNotification);
                     MyAPIGateway.Multiplayer.UnregisterMessageHandler(TerminalStatusSyncId, HandleTerminalStatus);
                     MyAPIGateway.Multiplayer.UnregisterMessageHandler(RepairUiStateSyncId, HandleRepairUiState);
+                    MyAPIGateway.Multiplayer.UnregisterMessageHandler(AdminZoneConfigStateSyncId, HandleAdminZoneConfigState);
                     _clientHandlersRegistered = false;
                     ResetRichHud();
                 }
@@ -187,7 +201,6 @@ namespace SafeZoneRepair
                 _estimatedRepairCostCache.Clear();
                 _lastControlledGridByPlayer.Clear();
                 _manualHudRequested = false;
-                _cockpitHudSuppressed = false;
                 _cockpitInteractiveRequested = false;
 
                 _rhfBindsRegistered = false;
@@ -567,7 +580,7 @@ namespace SafeZoneRepair
 
         private bool IsCockpitHudVisible()
         {
-            return !_cockpitHudSuppressed;
+            return true;
         }
 
         private bool IsCockpitInteractiveHudRequested()
@@ -597,7 +610,7 @@ namespace SafeZoneRepair
                 if (_cockpitHudSuppressed)
                 {
                     _cockpitInteractiveRequested = false;
-                    SetInteractiveCursorEnabled(false);
+                    RefreshUiCursorState();
                     HideHud();
                 }
                 else if (_clientUiState != null)
@@ -671,7 +684,7 @@ namespace SafeZoneRepair
 
                     _cockpitInteractiveRequested = !_cockpitInteractiveRequested;
                     _manualHudRequested = false;
-                    SetInteractiveCursorEnabled(_cockpitInteractiveRequested);
+                    RefreshUiCursorState();
 
                     if (_clientUiState != null)
                         UpdateRichHudState(_clientUiState);
@@ -684,7 +697,7 @@ namespace SafeZoneRepair
                 if (_clientUiState == null || !_clientUiState.InRepairZone)
                 {
                     _manualHudRequested = false;
-                    SetInteractiveCursorEnabled(false);
+                    RefreshUiCursorState();
                     HideHud();
                     return;
                 }
@@ -826,6 +839,167 @@ namespace SafeZoneRepair
             };
         }
 
+        private bool IsAdminMenuHotkeyPressed()
+        {
+            var input = MyAPIGateway.Input;
+            return input != null && input.IsAnyCtrlKeyPressed() && input.IsNewKeyPressed(AdminMenuKey);
+        }
+
+        private bool IsPlayerAdmin(IMyPlayer player)
+        {
+            if (player == null)
+                return false;
+
+            var level = player.PromoteLevel;
+            return level == MyPromoteLevel.Admin || level == MyPromoteLevel.Owner || level == MyPromoteLevel.SpaceMaster;
+        }
+
+        private bool TryGetPlayerPosition(IMyPlayer player, out Vector3D position)
+        {
+            position = Vector3D.Zero;
+            if (player == null)
+                return false;
+
+            var controlled = player.Controller?.ControlledEntity?.Entity as IMyEntity;
+            if (controlled != null)
+            {
+                position = controlled.GetPosition();
+                return true;
+            }
+
+            if (player.Character != null)
+            {
+                position = player.Character.GetPosition();
+                return true;
+            }
+
+            return false;
+        }
+
+        private bool TryGetAdminContext(IMyPlayer player, out MySafeZone zone, out SafeZoneConfig cfg)
+        {
+            zone = null;
+            cfg = null;
+
+            if (!IsPlayerAdmin(player))
+                return false;
+
+            Vector3D pos;
+            if (!TryGetPlayerPosition(player, out pos))
+                return false;
+
+            zone = GetSafeZoneForPosition(pos);
+            if (zone == null)
+                return false;
+
+            if (!zoneConfigs.TryGetValue(zone.EntityId, out cfg) || cfg == null)
+            {
+                string zoneName = GetSafeZoneDefaultName(zone);
+                cfg = new SafeZoneConfig
+                {
+                    ZoneEntityId = zone.EntityId,
+                    ZoneName = zoneName,
+                    DisplayName = zoneName,
+                    WeldingSpeed = weldingSpeed,
+                    CostModifier = costModifier,
+                    Enabled = true,
+                    AllowProjections = true,
+                    ProjectionBuildDelay = 1f,
+                    ForbiddenComponents = new List<string>()
+                };
+                NormalizeZoneConfig(cfg);
+                zoneConfigs[zone.EntityId] = cfg;
+                SaveConfig(new List<SafeZoneConfig>(zoneConfigs.Values));
+            }
+
+            return true;
+        }
+
+        private void ToggleAdminPanelForLocalContext()
+        {
+            try
+            {
+                if (MyAPIGateway.Utilities == null || MyAPIGateway.Utilities.IsDedicated)
+                    return;
+
+                var player = GetLocalPlayer();
+                if (!IsPlayerAdmin(player))
+                    return;
+
+                if (_adminPanelRequested)
+                {
+                    _adminPanelRequested = false;
+                    RefreshUiCursorState();
+                    UpdateAdminPanelState();
+                    return;
+                }
+
+                _adminPanelRequested = true;
+                MarkAdminPanelDirty();
+                RequestAdminZoneConfig(false);
+                RefreshUiCursorState();
+                UpdateAdminPanelState();
+            }
+            catch (Exception ex)
+            {
+                LogError($"ToggleAdminPanelForLocalContext error: {ex}");
+            }
+        }
+
+        private void RefreshUiCursorState()
+        {
+            SetInteractiveCursorEnabled(_cockpitInteractiveRequested || _adminPanelRequested);
+        }
+
+        private void RequestAdminZoneConfig(bool reload)
+        {
+            try
+            {
+                var player = GetLocalPlayer();
+                if (player == null)
+                    return;
+
+                var msg = new AdminZoneConfigRequestMessage
+                {
+                    PlayerId = player.IdentityId,
+                    ReloadFromDisk = reload
+                };
+                byte[] data = MyAPIGateway.Utilities.SerializeToBinary(msg);
+                MyAPIGateway.Multiplayer.SendMessageToServer(AdminZoneConfigRequestSyncId, data);
+            }
+            catch (Exception ex)
+            {
+                LogError($"RequestAdminZoneConfig error: {ex}");
+            }
+        }
+
+        private void SendAdminZoneConfigUpdateFromClient(string zoneName, bool enabled, float weldingSpeedValue, float costModifierValue, bool allowProjections)
+        {
+            try
+            {
+                var player = GetLocalPlayer();
+                if (player == null || _adminZoneState == null || _adminZoneState.ZoneEntityId == 0)
+                    return;
+
+                var msg = new AdminZoneConfigUpdateMessage
+                {
+                    PlayerId = player.IdentityId,
+                    ZoneEntityId = _adminZoneState.ZoneEntityId,
+                    ZoneName = zoneName,
+                    Enabled = enabled,
+                    WeldingSpeed = weldingSpeedValue,
+                    CostModifier = costModifierValue,
+                    AllowProjections = allowProjections
+                };
+                byte[] data = MyAPIGateway.Utilities.SerializeToBinary(msg);
+                MyAPIGateway.Multiplayer.SendMessageToServer(AdminZoneConfigUpdateSyncId, data);
+            }
+            catch (Exception ex)
+            {
+                LogError($"SendAdminZoneConfigUpdateFromClient error: {ex}");
+            }
+        }
+
         private bool IsHudHotkeyPressed()
         {
             if (_hudToggleBind != null)
@@ -862,7 +1036,7 @@ namespace SafeZoneRepair
                 if (MyAPIGateway.Gui.ChatEntryVisible)
                     return;
 
-                if (MyAPIGateway.Gui.IsCursorVisible && !IsCockpitInteractiveHudRequested())
+                if (MyAPIGateway.Gui.IsCursorVisible && !IsCockpitInteractiveHudRequested() && !_adminPanelRequested)
                     return;
 
                 if (GetLocalControlledShipController() != null && IsCockpitHudSuppressHotkeyPressed())
@@ -873,6 +1047,9 @@ namespace SafeZoneRepair
 
                 if (GetLocalControlledShipController() != null && IsRepairHotkeyPressed())
                     ToggleRepairForLocalContext();
+
+                if (IsAdminMenuHotkeyPressed())
+                    ToggleAdminPanelForLocalContext();
             }
             catch (Exception ex)
             {
@@ -935,11 +1112,19 @@ namespace SafeZoneRepair
 
                 _lastClientHudVisibilityCheck = now;
 
+                var localPlayer = GetLocalPlayer();
+                if (_adminPanelRequested && (!IsPlayerAdmin(localPlayer) || _clientUiState == null || !_clientUiState.InRepairZone))
+                {
+                    _adminPanelRequested = false;
+                    RefreshUiCursorState();
+                    UpdateAdminPanelState();
+                }
+
                 if (_clientUiState == null || !_clientUiState.InRepairZone)
                 {
                     _manualHudRequested = false;
                     _cockpitInteractiveRequested = false;
-                    SetInteractiveCursorEnabled(false);
+                    RefreshUiCursorState();
                     HideHud();
                     return;
                 }
@@ -954,12 +1139,22 @@ namespace SafeZoneRepair
                         return;
                     }
 
-                    SetInteractiveCursorEnabled(_cockpitInteractiveRequested);
+                    RefreshUiCursorState();
                     ShowHud();
                     return;
                 }
 
                 _cockpitInteractiveRequested = false;
+
+                if (_adminPanelRequested)
+                {
+                    RefreshUiCursorState();
+                    UpdateAdminPanelState();
+                    if (_panel != null)
+                        _panel.Visible = false;
+                    return;
+                }
+
                 SetInteractiveCursorEnabled(false);
 
                 if (IsManualHudAllowed())
@@ -1769,7 +1964,8 @@ namespace SafeZoneRepair
                 if (targetPlayer != null)
                 {
                     MyAPIGateway.Multiplayer.SendMessageTo(SyncId, data, targetPlayer.SteamUserId);
-                    SendRepairUiStateToPlayer(targetPlayer, true, block.CubeGrid, GetSafeZoneForGrid(block.CubeGrid), "Repair complete", $"{msg.BlockName} repaired! Cost: {msg.Cost} SC");
+                    string nextStatus = GetGridRepairSetting(block.CubeGrid) ? "Repair ready" : "Repair disabled for your ship";
+					SendRepairUiStateToPlayer(targetPlayer, true, block.CubeGrid, GetSafeZoneForGrid(block.CubeGrid), nextStatus, $"{msg.BlockName} repaired! Cost: {msg.Cost} SC");
                 }
                 else
                 {
@@ -2006,6 +2202,125 @@ namespace SafeZoneRepair
             blockRepairInfo.Clear();
             _estimatedRepairCostCache.Clear();
             LogGeneral("Repair queue cleared");
+        }
+
+        private void SendAdminZoneConfigStateToPlayer(IMyPlayer player, bool success, string errorText, MySafeZone zone, SafeZoneConfig cfg)
+        {
+            if (player == null || !MyAPIGateway.Multiplayer.IsServer)
+                return;
+
+            var msg = new AdminZoneConfigStateMessage
+            {
+                PlayerId = player.IdentityId,
+                Success = success,
+                ErrorText = errorText ?? string.Empty,
+                ZoneEntityId = zone?.EntityId ?? 0L,
+                ZoneName = cfg?.DisplayName ?? cfg?.ZoneName ?? string.Empty,
+                Enabled = cfg?.Enabled ?? false,
+                WeldingSpeed = cfg?.WeldingSpeed ?? 0f,
+                CostModifier = cfg?.CostModifier ?? 0f,
+                AllowProjections = cfg?.AllowProjections ?? false
+            };
+
+            byte[] data = MyAPIGateway.Utilities.SerializeToBinary(msg);
+            MyAPIGateway.Multiplayer.SendMessageTo(AdminZoneConfigStateSyncId, data, player.SteamUserId);
+        }
+
+        private void HandleAdminZoneConfigRequest(byte[] data)
+        {
+            try
+            {
+                var msg = MyAPIGateway.Utilities.SerializeFromBinary<AdminZoneConfigRequestMessage>(data);
+                if (msg == null || !MyAPIGateway.Multiplayer.IsServer)
+                    return;
+
+                var player = GetPlayerByIdentityId(msg.PlayerId);
+                if (player == null)
+                    return;
+
+                if (msg.ReloadFromDisk)
+                    LoadConfig();
+
+                MySafeZone zone;
+                SafeZoneConfig cfg;
+                if (!TryGetAdminContext(player, out zone, out cfg))
+                {
+                    SendAdminZoneConfigStateToPlayer(player, false, "Admin access requires being inside a safe zone.", null, null);
+                    return;
+                }
+
+                SendAdminZoneConfigStateToPlayer(player, true, null, zone, cfg);
+            }
+            catch (Exception ex)
+            {
+                LogError($"HandleAdminZoneConfigRequest error: {ex}");
+            }
+        }
+
+        private void HandleAdminZoneConfigUpdate(byte[] data)
+        {
+            try
+            {
+                var msg = MyAPIGateway.Utilities.SerializeFromBinary<AdminZoneConfigUpdateMessage>(data);
+                if (msg == null || !MyAPIGateway.Multiplayer.IsServer)
+                    return;
+
+                var player = GetPlayerByIdentityId(msg.PlayerId);
+                if (player == null)
+                    return;
+
+                MySafeZone zone;
+                SafeZoneConfig cfg;
+                if (!TryGetAdminContext(player, out zone, out cfg) || zone == null || zone.EntityId != msg.ZoneEntityId)
+                {
+                    SendAdminZoneConfigStateToPlayer(player, false, "Zone context invalid.", zone, cfg);
+                    return;
+                }
+
+                cfg.ZoneName = string.IsNullOrWhiteSpace(msg.ZoneName) ? GetSafeZoneDefaultName(zone) : msg.ZoneName.Trim();
+                cfg.DisplayName = cfg.ZoneName;
+                cfg.Enabled = msg.Enabled;
+                cfg.WeldingSpeed = Math.Max(0.01f, msg.WeldingSpeed);
+                cfg.CostModifier = Math.Max(0f, msg.CostModifier);
+                cfg.AllowProjections = msg.AllowProjections;
+                cfg.ZoneEntityId = zone.EntityId;
+                NormalizeZoneConfig(cfg);
+                zoneConfigs[zone.EntityId] = cfg;
+                SaveConfig(new List<SafeZoneConfig>(zoneConfigs.Values));
+
+                SendAdminZoneConfigStateToPlayer(player, true, "Zone settings applied.", zone, cfg);
+            }
+            catch (Exception ex)
+            {
+                LogError($"HandleAdminZoneConfigUpdate error: {ex}");
+            }
+        }
+
+        private void HandleAdminZoneConfigState(byte[] data)
+        {
+            try
+            {
+                var msg = MyAPIGateway.Utilities.SerializeFromBinary<AdminZoneConfigStateMessage>(data);
+                if (msg == null)
+                    return;
+
+                if (msg.PlayerId != 0 && msg.PlayerId != MyAPIGateway.Session?.LocalHumanPlayer?.IdentityId)
+                    return;
+
+                _adminZoneState = msg;
+                MarkAdminPanelDirty();
+                if (!msg.Success)
+                {
+                    _adminPanelRequested = false;
+                    RefreshUiCursorState();
+                }
+
+                UpdateAdminPanelState();
+            }
+            catch (Exception ex)
+            {
+                LogError($"HandleAdminZoneConfigState error: {ex}");
+            }
         }
 
         // --- Обработка чат-команд ---

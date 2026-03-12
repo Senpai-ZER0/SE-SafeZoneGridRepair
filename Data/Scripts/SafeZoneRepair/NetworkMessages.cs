@@ -46,5 +46,38 @@ namespace SafeZoneRepair
         [ProtoMember(10)] public string RepairPhaseText;
     }
 
-}
 
+    [ProtoContract]
+    public class AdminZoneConfigRequestMessage
+    {
+        [ProtoMember(1)] public long PlayerId;
+        [ProtoMember(2)] public bool ReloadFromDisk;
+    }
+
+    [ProtoContract]
+    public class AdminZoneConfigUpdateMessage
+    {
+        [ProtoMember(1)] public long PlayerId;
+        [ProtoMember(2)] public long ZoneEntityId;
+        [ProtoMember(3)] public string ZoneName;
+        [ProtoMember(4)] public bool Enabled;
+        [ProtoMember(5)] public float WeldingSpeed;
+        [ProtoMember(6)] public float CostModifier;
+        [ProtoMember(7)] public bool AllowProjections;
+    }
+
+    [ProtoContract]
+    public class AdminZoneConfigStateMessage
+    {
+        [ProtoMember(1)] public long PlayerId;
+        [ProtoMember(2)] public bool Success;
+        [ProtoMember(3)] public string ErrorText;
+        [ProtoMember(4)] public long ZoneEntityId;
+        [ProtoMember(5)] public string ZoneName;
+        [ProtoMember(6)] public bool Enabled;
+        [ProtoMember(7)] public float WeldingSpeed;
+        [ProtoMember(8)] public float CostModifier;
+        [ProtoMember(9)] public bool AllowProjections;
+    }
+
+}
