@@ -233,7 +233,7 @@ namespace SafeZoneRepair
             long estimatedRepairCost = state.EstimatedRepairCost < 0 ? 0 : state.EstimatedRepairCost;
             string currentRepairText = string.IsNullOrWhiteSpace(state.CurrentRepairText) ? "Current repair: -" : state.CurrentRepairText.Trim();
             string costText = string.Format("Estimated cost: {0} SC", estimatedRepairCost);
-            repairText = string.Format("{0}\nCtrl+H: HUD  |  Ctrl+R: Repair  |  Toolbar: Toggle Repair HUD", repairText);
+            repairText = string.Format("{0}\nCtrl+J: HUD  |  Ctrl+R: Repair (cockpit)  |  Toolbar: Repair / Status / HUD", repairText);
 
 			SetHudLines(
 				"Safe Zone Repair",

@@ -82,7 +82,7 @@ namespace SafeZoneRepair
         private Dictionary<long, long> _lastControlledGridByPlayer = new Dictionary<long, long>();
         private bool _manualHudRequested = false;
         private bool _cockpitHudSuppressed = false;
-        private static readonly MyKeys HudToggleKey = MyKeys.H;
+        private static readonly MyKeys HudToggleKey = MyKeys.J;
         private static readonly MyKeys RepairToggleKey = MyKeys.R;
 
         private sealed class EstimatedRepairCostCacheEntry
@@ -621,7 +621,12 @@ namespace SafeZoneRepair
         {
             try
             {
-                IMyCubeGrid grid = sourceGrid ?? GetLocalActionGrid();
+                var shipController = GetLocalControlledShipController();
+                IMyCubeGrid grid = sourceGrid;
+
+                if (grid == null)
+                    grid = shipController?.CubeGrid;
+
                 if (grid == null)
                     return;
 
