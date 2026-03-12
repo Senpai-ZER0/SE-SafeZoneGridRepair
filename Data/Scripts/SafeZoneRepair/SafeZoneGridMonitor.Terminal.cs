@@ -1,9 +1,9 @@
-﻿using Sandbox.ModAPI;
+using Sandbox.ModAPI;
 using Sandbox.ModAPI.Interfaces.Terminal;
 using System;
 using System.Text;
 using VRage.Game.ModAPI;
-using VRage.Utils; // обязательно для MyLog
+using VRage.Utils;
 
 namespace SafeZoneRepair
 {
@@ -12,7 +12,9 @@ namespace SafeZoneRepair
         private static bool _terminalActionsRegistered = false;
 
         /// <summary>
-        /// Регистрирует действия терминала. Вызывается ТОЛЬКО на клиенте.
+        /// Регистрирует terminal actions для ship controller, чтобы их можно было
+        /// назначать на toolbar / кнопки в кокпите.
+        /// Вызывается только на клиенте.
         /// </summary>
         private void RegisterTerminalActions()
         {
@@ -26,40 +28,86 @@ namespace SafeZoneRepair
 
             try
             {
-                var toggleAction = MyAPIGateway.TerminalControls.CreateAction<IMyShipController>("ToggleRepairInSafeZones");
-                toggleAction.Name = new StringBuilder("Toggle repair in safe zones");
-                toggleAction.Icon = @"Textures\GUI\Icons\Actions\SwitchOnOff.dds";
-                toggleAction.Action = (block) =>
-                {
-                    if (block?.CubeGrid != null)
-                        ToggleRepair(block.CubeGrid);
-                };
-                MyAPIGateway.TerminalControls.AddAction<IMyShipController>(toggleAction);
-
-                var hudAction = MyAPIGateway.TerminalControls.CreateAction<IMyShipController>("ToggleRepairHud");
-                hudAction.Name = new StringBuilder("Toggle repair HUD");
-                hudAction.Icon = @"Textures\GUI\Icons\Actions\Toggle.dds";
-                hudAction.Action = (block) =>
-                {
-                    if (block?.CubeGrid != null)
-                        ToggleHudForLocalContext(block.CubeGrid);
-                };
-                MyAPIGateway.TerminalControls.AddAction<IMyShipController>(hudAction);
-
-                var statusAction = MyAPIGateway.TerminalControls.CreateAction<IMyShipController>("ShowRepairStatus");
-                statusAction.Name = new StringBuilder("Show repair status");
-                statusAction.Icon = @"Textures\GUI\Icons\Actions\Info.dds";
-                statusAction.Action = (block) =>
-                {
-                    if (block?.CubeGrid != null)
-                        ShowRepairStatus(block.CubeGrid);
-                };
-                MyAPIGateway.TerminalControls.AddAction<IMyShipController>(statusAction);
+                RegisterToggleRepairAction();
+                RegisterShowRepairStatusAction();
+                RegisterToggleRepairHudAction();
             }
             catch (Exception ex)
             {
-                MyLog.Default.WriteLine($"SafeZoneRepair terminal error {ex}");
+                MyLog.Default.WriteLine($"[SafeZoneRepair] terminal error: {ex}");
             }
+        }
+
+        private void RegisterToggleRepairAction()
+        {
+            var action = MyAPIGateway.TerminalControls.CreateAction<IMyShipController>("ToggleRepairInSafeZones");
+            action.Name = new StringBuilder("Toggle repair mode");
+            action.Icon = @"Textures\GUI\Icons\Actions\Toggle.dds";
+            action.Action = block =>
+            {
+                var shipController = block as IMyShipController;
+                var grid = shipController?.CubeGrid;
+                if (grid != null)
+                    ToggleRepair(grid);
+            };
+            action.Writer = (block, sb) =>
+            {
+                var shipController = block as IMyShipController;
+                var grid = shipController?.CubeGrid;
+                if (grid == null)
+                {
+                    sb.Append("Repair: N/A");
+                    return;
+                }
+
+                bool enabled = GetGridRepairSetting(grid);
+                sb.Append(enabled ? "Repair: ON" : "Repair: OFF");
+            };
+
+            MyAPIGateway.TerminalControls.AddAction<IMyShipController>(action);
+        }
+
+        private void RegisterShowRepairStatusAction()
+        {
+            var action = MyAPIGateway.TerminalControls.CreateAction<IMyShipController>("ShowRepairStatus");
+            action.Name = new StringBuilder("Show repair status");
+            action.Icon = @"Textures\GUI\Icons\Actions\Toggle.dds";
+            action.Action = block =>
+            {
+                var shipController = block as IMyShipController;
+                var grid = shipController?.CubeGrid;
+                if (grid != null)
+                    ShowRepairStatus(grid);
+            };
+            action.Writer = (block, sb) =>
+            {
+                sb.Append("Repair status");
+            };
+
+            MyAPIGateway.TerminalControls.AddAction<IMyShipController>(action);
+        }
+
+        private void RegisterToggleRepairHudAction()
+        {
+            var action = MyAPIGateway.TerminalControls.CreateAction<IMyShipController>("ToggleRepairHud");
+            action.Name = new StringBuilder("Toggle repair HUD");
+            action.Icon = @"Textures\GUI\Icons\Actions\Toggle.dds";
+            action.Action = block =>
+            {
+                var shipController = block as IMyShipController;
+                var grid = shipController?.CubeGrid;
+
+                if (grid != null)
+                    ToggleHudForLocalContext(grid);
+                else
+                    ToggleHudForLocalContext();
+            };
+            action.Writer = (block, sb) =>
+            {
+                sb.Append("Toggle repair HUD");
+            };
+
+            MyAPIGateway.TerminalControls.AddAction<IMyShipController>(action);
         }
     }
 }
