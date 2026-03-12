@@ -24,5 +24,10 @@ namespace SafeZoneRepair
         /// EntityId исходного управляемого грида, для которого этот блок попал в очередь.
         /// </summary>
         public long SourceGridEntityId;
+
+        /// <summary>
+        /// Количество подряд попыток ремонта без прогресса.
+        /// </summary>
+        public int NoProgressPasses;
     }
 }

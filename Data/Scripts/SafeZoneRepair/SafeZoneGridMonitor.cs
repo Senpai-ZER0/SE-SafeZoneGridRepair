@@ -728,7 +728,7 @@ namespace SafeZoneRepair
                             if (repairEnabled)
                                 HandleGridInSafeZone(grid, player.IdentityId, grid.EntityId);
 
-                            string statusText = repairEnabled ? "Entered repair zone" : "Repair disabled for your ship";
+                            string statusText = repairEnabled ? "Repair ready" : "Repair disabled for your ship";
                             SendRepairUiStateToPlayer(player, true, grid, zone, statusText);
                         }
                     }
@@ -1214,6 +1214,15 @@ namespace SafeZoneRepair
             float currentDamageBefore = block.CurrentDamage;
             float buildIntegrityBefore = block.BuildIntegrity;
 
+            if (remainingBuildIntegrity <= 0.01f && hasDeformation)
+            {
+                LogRepair($"Skipping deformation-only block {Utils.BlockName(block)} to avoid repair loop");
+                blocksRepairQueue.Dequeue();
+                blocksInQueue.Remove(block);
+                blockRepairInfo.Remove(block);
+                return;
+            }
+
             float repairAmount = localWeldingSpeed * (float)deltaTime;
             if (remainingBuildIntegrity > 0.01f)
             {
@@ -1315,9 +1324,24 @@ namespace SafeZoneRepair
 
             if (!progressMade)
             {
-                LogRepair($"No repair progress detected for {Utils.BlockName(block)}, moving block to back of queue");
+                info.NoProgressPasses++;
+
+                if (info.NoProgressPasses >= 3)
+                {
+                    LogRepair($"No repair progress detected for {Utils.BlockName(block)} after {info.NoProgressPasses} attempts, removing block from queue");
+                    blocksRepairQueue.Dequeue();
+                    blocksInQueue.Remove(block);
+                    blockRepairInfo.Remove(block);
+                    return;
+                }
+
+                LogRepair($"No repair progress detected for {Utils.BlockName(block)}, moving block to back of queue (attempt {info.NoProgressPasses})");
                 blocksRepairQueue.Dequeue();
                 blocksRepairQueue.Enqueue(block);
+            }
+            else
+            {
+                info.NoProgressPasses = 0;
             }
         }
 
@@ -1514,7 +1538,7 @@ namespace SafeZoneRepair
                 InRepairZone = inRepairZone,
                 ZoneName = zoneName,
                 RepairEnabled = repairEnabled,
-                StatusText = string.IsNullOrWhiteSpace(statusText) ? (inRepairZone ? "Entered repair zone" : "Outside repair zone") : statusText,
+                StatusText = string.IsNullOrWhiteSpace(statusText) ? (inRepairZone ? "In repair zone" : "Outside repair zone") : statusText,
                 LastRepairText = string.IsNullOrWhiteSpace(lastRepairText) ? _clientUiState.LastRepairText : lastRepairText,
                 LastEventUtcTicks = DateTime.UtcNow.Ticks,
                 EstimatedRepairCost = estimatedRepairCost,

@@ -14,11 +14,17 @@ namespace SafeZoneRepair
 
             var def = target.BlockDefinition as MyCubeBlockDefinition;
             if (def == null)
-                return target.HasDeformation || target.BuildIntegrity < target.MaxIntegrity - 0.01f;
+                return !target.IsDestroyed &&
+                       (target.FatBlock == null || !target.FatBlock.Closed) &&
+                       (target.BuildIntegrity < target.MaxIntegrity - 0.01f);
 
-            float needed = functionalOnly ? target.MaxIntegrity * def.CriticalIntegrityRatio : target.MaxIntegrity;
-            return !target.IsDestroyed && (target.FatBlock == null || !target.FatBlock.Closed) &&
-                   (target.BuildIntegrity < needed - 0.01f || target.HasDeformation);
+            float needed = functionalOnly
+                ? target.MaxIntegrity * def.CriticalIntegrityRatio
+                : target.MaxIntegrity;
+
+            return !target.IsDestroyed &&
+                   (target.FatBlock == null || !target.FatBlock.Closed) &&
+                   (target.BuildIntegrity < needed - 0.01f);
         }
 
         public static bool IsProjected(this IMySlimBlock target)
