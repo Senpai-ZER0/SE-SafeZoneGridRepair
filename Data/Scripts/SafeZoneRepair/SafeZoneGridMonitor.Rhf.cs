@@ -1,4 +1,4 @@
-﻿using System;
+using System;
 using Sandbox.ModAPI;
 using RichHudFramework.Client;
 using RichHudFramework.UI;
@@ -22,7 +22,6 @@ namespace SafeZoneRepair
         private static Label _repairLabel;
         private static Label _hintLabel;
         private static BorderedButton _toggleRepairButton;
-        private static BorderedButton _showStatusButton;
         private static BorderedButton _closeMenuButton;
 
         private static string _stickyLastRepairText;
@@ -93,10 +92,8 @@ namespace SafeZoneRepair
             _repairLabel = null;
             _hintLabel = null;
             _toggleRepairButton = null;
-            _showStatusButton = null;
             _closeMenuButton = null;
             _toggleRepairButton = null;
-            _showStatusButton = null;
             _closeMenuButton = null;
 
             _stickyLastRepairText = null;
@@ -123,7 +120,6 @@ namespace SafeZoneRepair
             _repairLabel = null;
             _hintLabel = null;
             _toggleRepairButton = null;
-            _showStatusButton = null;
             _closeMenuButton = null;
 
             _stickyLastRepairText = null;
@@ -162,14 +158,10 @@ namespace SafeZoneRepair
             _hintLabel = CreateLabel(new Vector2(24f, -177f), new Vector2(560f, 44f), 0.78f, TextBuilderModes.Wrapped);
 
             _toggleRepairButton = CreateMenuButton(new Vector2(24f, -234f), new Vector2(170f, 36f), "Toggle repair");
-            _showStatusButton = CreateMenuButton(new Vector2(214f, -234f), new Vector2(170f, 36f), "Show status");
             _closeMenuButton = CreateMenuButton(new Vector2(404f, -234f), new Vector2(170f, 36f), "Close menu");
 
             if (_toggleRepairButton != null)
                 _toggleRepairButton.MouseInput.LeftClicked += ToggleRepairButtonClicked;
-
-            if (_showStatusButton != null)
-                _showStatusButton.MouseInput.LeftClicked += ShowStatusButtonClicked;
 
             if (_closeMenuButton != null)
                 _closeMenuButton.MouseInput.LeftClicked += CloseMenuButtonClicked;
@@ -222,9 +214,6 @@ namespace SafeZoneRepair
                 _toggleRepairButton.Text = repairEnabled ? "Disable repair" : "Enable repair";
             }
 
-            if (_showStatusButton != null)
-                _showStatusButton.Visible = visible;
-
             if (_closeMenuButton != null)
                 _closeMenuButton.Visible = visible;
         }
@@ -238,18 +227,6 @@ namespace SafeZoneRepair
             catch (Exception ex)
             {
                 LogError("ToggleRepairButtonClicked error: " + ex);
-            }
-        }
-
-        private void ShowStatusButtonClicked(object sender, EventArgs e)
-        {
-            try
-            {
-                ShowStatusForLocalContext();
-            }
-            catch (Exception ex)
-            {
-                LogError("ShowStatusButtonClicked error: " + ex);
             }
         }
 
