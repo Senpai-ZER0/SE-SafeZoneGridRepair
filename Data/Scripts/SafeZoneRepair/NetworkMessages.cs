@@ -95,5 +95,6 @@ namespace SafeZoneRepair
         [ProtoMember(12)] public string DebugText;
         [ProtoMember(13)] public long SelectedZoneEntityId;
         [ProtoMember(14)] public System.Collections.Generic.List<AdminZoneListEntryMessage> ZoneEntries;
+        [ProtoMember(15)] public string ZoneCreationType;
     }
 }

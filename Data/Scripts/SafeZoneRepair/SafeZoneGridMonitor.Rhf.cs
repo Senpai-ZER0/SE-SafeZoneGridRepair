@@ -576,7 +576,11 @@ namespace SafeZoneRepair
             if (_adminTitleLabel != null)
                 _adminTitleLabel.Text = "ZERO's Safe Zone Admin";
             if (_adminZoneLabel != null)
-                _adminZoneLabel.Text = string.IsNullOrWhiteSpace(state.ZoneName) ? "Selected zone: -" : "Selected zone: " + state.ZoneName;
+            {
+                string zoneText = string.IsNullOrWhiteSpace(state.ZoneName) ? "Selected zone: -" : "Selected zone: " + state.ZoneName;
+                string typeText = string.IsNullOrWhiteSpace(state.ZoneCreationType) ? string.Empty : " | Type: " + (string.Equals(state.ZoneCreationType, "Admin", StringComparison.OrdinalIgnoreCase) ? "Admin" : "Block");
+                _adminZoneLabel.Text = zoneText + typeText;
+            }
             if (_adminStatusLabel != null)
                 _adminStatusLabel.Text = state.Success
                     ? "Select any zone on the left to edit it remotely. Apply saves the selected zone."

@@ -2,6 +2,7 @@
 using Sandbox.Game;
 using Sandbox.Game.Entities;
 using Sandbox.Game.Entities.Blocks;
+using Sandbox.Common.ObjectBuilders;
 using System;
 using System.Collections.Generic;
 using System.Diagnostics;
@@ -109,6 +110,8 @@ namespace SafeZoneRepair
         private bool _adminPanelRequested = false;
         private AdminZoneConfigStateMessage _adminZoneState = new AdminZoneConfigStateMessage();
         private const int AdminZoneListPageSize = 5;
+        private const string ZoneCreationTypeAdmin = "Admin";
+        private const string ZoneCreationTypeSafeZoneBlock = "SafeZoneBlock";
 
         private sealed class EstimatedRepairCostCacheEntry
         {
@@ -240,13 +243,19 @@ namespace SafeZoneRepair
                         var list = MyAPIGateway.Utilities.SerializeFromXML<List<SafeZoneConfig>>(xml);
                         if (list != null)
                         {
+                            bool typeRefreshDirty = false;
                             foreach (var cfg in list)
                             {
                                 NormalizeZoneConfig(cfg);
+                                if (RefreshZoneCreationTypeFromLiveZone(cfg))
+                                    typeRefreshDirty = true;
 
                                 if (cfg.ZoneEntityId != 0)
                                     zoneConfigs[cfg.ZoneEntityId] = cfg;
                             }
+
+                            if (typeRefreshDirty)
+                                SaveConfig(new List<SafeZoneConfig>(zoneConfigs.Values));
                         }
                     }
                 }
@@ -271,6 +280,55 @@ namespace SafeZoneRepair
             return "Repair Zone";
         }
 
+
+        private static string NormalizeZoneCreationTypeValue(string value)
+        {
+            return string.Equals(value, ZoneCreationTypeAdmin, StringComparison.OrdinalIgnoreCase)
+                ? ZoneCreationTypeAdmin
+                : ZoneCreationTypeSafeZoneBlock;
+        }
+
+        private static string GetZoneCreationTypeLabel(string value)
+        {
+            return NormalizeZoneCreationTypeValue(value) == ZoneCreationTypeAdmin ? "Admin" : "Block";
+        }
+
+        private static string DetectZoneCreationType(MySafeZone zone)
+        {
+            if (zone == null)
+                return ZoneCreationTypeSafeZoneBlock;
+
+            try
+            {
+                var objectBuilder = zone.GetObjectBuilder() as MyObjectBuilder_SafeZone;
+                if (objectBuilder != null && objectBuilder.SafeZoneBlockId != 0L)
+                    return ZoneCreationTypeSafeZoneBlock;
+            }
+            catch (Exception ex)
+            {
+                MyLog.Default.WriteLineAndConsole("[SafeZoneRepair] DetectZoneCreationType failed for zone " + zone.EntityId + ": " + ex);
+            }
+
+            return ZoneCreationTypeAdmin;
+        }
+
+        private bool RefreshZoneCreationTypeFromLiveZone(SafeZoneConfig cfg)
+        {
+            if (cfg == null || cfg.ZoneEntityId == 0L)
+                return false;
+
+            MySafeZone zone;
+            if (!TryGetSafeZoneByEntityId(cfg.ZoneEntityId, out zone) || zone == null)
+                return false;
+
+            string detected = NormalizeZoneCreationTypeValue(DetectZoneCreationType(zone));
+            if (string.Equals(cfg.ZoneCreationType, detected, StringComparison.OrdinalIgnoreCase))
+                return false;
+
+            cfg.ZoneCreationType = detected;
+            return true;
+        }
+
         private static void NormalizeZoneConfig(SafeZoneConfig cfg)
         {
             if (cfg == null)
@@ -284,6 +342,8 @@ namespace SafeZoneRepair
 
             if (cfg.ForbiddenComponents == null)
                 cfg.ForbiddenComponents = new List<string>();
+
+            cfg.ZoneCreationType = NormalizeZoneCreationTypeValue(cfg.ZoneCreationType);
 
             if (cfg.ProjectionWeldingSpeed < 0.001f)
             {
@@ -314,7 +374,8 @@ namespace SafeZoneRepair
                     ProjectionBuildDelay = 1f,
                     ForbiddenComponents = new List<string> { "ExampleComponent1", "ExampleComponent2" },
                     ProjectionWeldingSpeed = 1f,
-                    DebugMode = false
+                    DebugMode = false,
+                    ZoneCreationType = ZoneCreationTypeSafeZoneBlock
                 });
             }
             else
@@ -335,7 +396,8 @@ namespace SafeZoneRepair
                         ProjectionBuildDelay = 1f,
                         ForbiddenComponents = new List<string>(),
                         ProjectionWeldingSpeed = 1f,
-                        DebugMode = false
+                        DebugMode = false,
+                        ZoneCreationType = DetectZoneCreationType(zone)
                     });
                 }
             }
@@ -1002,13 +1064,15 @@ namespace SafeZoneRepair
                     ProjectionBuildDelay = 1f,
                     ForbiddenComponents = new List<string>(),
                     ProjectionWeldingSpeed = 1f,
-                    DebugMode = false
+                    DebugMode = false,
+                    ZoneCreationType = DetectZoneCreationType(zone)
                 };
                 NormalizeZoneConfig(cfg);
                 zoneConfigs[zone.EntityId] = cfg;
                 SaveConfig(new List<SafeZoneConfig>(zoneConfigs.Values));
             }
 
+            RefreshZoneCreationTypeFromLiveZone(cfg);
             return cfg;
         }
 
@@ -1625,7 +1689,8 @@ namespace SafeZoneRepair
                         ProjectionBuildDelay = 1f,
                         ForbiddenComponents = new List<string>(),
                         ProjectionWeldingSpeed = 1f,
-                        DebugMode = false
+                        DebugMode = false,
+                        ZoneCreationType = DetectZoneCreationType(zone)
                     };
                     SaveConfig(new List<SafeZoneConfig>(zoneConfigs.Values));
                 }
@@ -2882,6 +2947,9 @@ namespace SafeZoneRepair
             if (player == null || !MyAPIGateway.Multiplayer.IsServer)
                 return;
 
+            if (cfg != null)
+                RefreshZoneCreationTypeFromLiveZone(cfg);
+
             var msg = new AdminZoneConfigStateMessage
             {
                 PlayerId = player.IdentityId,
@@ -2897,7 +2965,8 @@ namespace SafeZoneRepair
                 DebugMode = cfg != null && cfg.DebugMode,
                 DebugText = BuildAdminDebugText(player, zone, cfg),
                 SelectedZoneEntityId = selectedZoneEntityId,
-                ZoneEntries = BuildAdminZoneList(selectedZoneEntityId, playerZoneEntityId)
+                ZoneEntries = BuildAdminZoneList(selectedZoneEntityId, playerZoneEntityId),
+                ZoneCreationType = cfg != null ? NormalizeZoneCreationTypeValue(cfg.ZoneCreationType) : ZoneCreationTypeSafeZoneBlock
             };
 
             byte[] data = MyAPIGateway.Utilities.SerializeToBinary(msg);
@@ -2969,6 +3038,7 @@ namespace SafeZoneRepair
                 cfg.ProjectionBuildDelay = (float)Math.Round(1f / Math.Max(0.001f, cfg.ProjectionWeldingSpeed), 2);
                 cfg.DebugMode = msg.DebugMode;
                 cfg.ZoneEntityId = zone.EntityId;
+                cfg.ZoneCreationType = DetectZoneCreationType(zone);
                 NormalizeZoneConfig(cfg);
                 zoneConfigs[zone.EntityId] = cfg;
                 SaveConfig(new List<SafeZoneConfig>(zoneConfigs.Values));

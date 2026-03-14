@@ -41,5 +41,8 @@ namespace SafeZoneRepair
 
         [ProtoMember(11)]
         public bool DebugMode { get; set; } = false;
+
+        [ProtoMember(12)]
+        public string ZoneCreationType { get; set; } = "SafeZoneBlock";
     }
 }
