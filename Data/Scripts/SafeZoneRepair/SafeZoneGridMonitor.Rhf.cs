@@ -29,6 +29,7 @@ namespace SafeZoneRepair
 
         private static BorderBox _adminPanel;
         private static Label _adminTitleLabel;
+        private static Label _adminZonesListLabel;
         private static Label _adminZoneLabel;
         private static Label _adminStatusLabel;
         private static Label _adminNameLabel;
@@ -44,6 +45,9 @@ namespace SafeZoneRepair
         private static TextField _adminWeldingSpeedField;
         private static TextField _adminCostModifierField;
         private static TextField _adminProjectionSpeedField;
+        private static BorderedButton[] _adminZoneSelectButtons;
+        private static BorderedButton _adminZonePrevButton;
+        private static BorderedButton _adminZoneNextButton;
         private static BorderedButton _adminToggleEnabledButton;
         private static BorderedButton _adminToggleProjectionsButton;
         private static BorderedButton _adminApplyButton;
@@ -57,6 +61,7 @@ namespace SafeZoneRepair
         private static BorderedButton _adminProjectionSpeedPlusButton;
         private static BorderedButton _adminToggleDebugModeButton;
         private static bool _adminPanelFieldsDirty = true;
+        private static int _adminZoneListPage = 0;
 
         private static string _stickyLastRepairText;
         private static DateTime _stickyLastRepairUntil = DateTime.MinValue;
@@ -137,6 +142,7 @@ namespace SafeZoneRepair
             _closeMenuButton = null;
             _adminPanel = null;
             _adminTitleLabel = null;
+            _adminZonesListLabel = null;
             _adminZoneLabel = null;
             _adminStatusLabel = null;
             _adminNameLabel = null;
@@ -149,6 +155,9 @@ namespace SafeZoneRepair
             _adminDebugOutputLabel = null;
             _adminDebugTextLabel = null;
             _adminZoneNameField = null;
+            _adminZoneSelectButtons = null;
+            _adminZonePrevButton = null;
+            _adminZoneNextButton = null;
             _adminWeldingSpeedField = null;
             _adminCostModifierField = null;
             _adminProjectionSpeedField = null;
@@ -166,6 +175,7 @@ namespace SafeZoneRepair
             _adminToggleDebugModeButton = null;
             _adminPanel = null;
             _adminTitleLabel = null;
+            _adminZonesListLabel = null;
             _adminZoneLabel = null;
             _adminStatusLabel = null;
             _adminNameLabel = null;
@@ -188,6 +198,11 @@ namespace SafeZoneRepair
             _adminCloseButton = null;
             _toggleRepairButton = null;
             _closeMenuButton = null;
+            _adminZonesListLabel = null;
+            _adminZoneSelectButtons = null;
+            _adminZonePrevButton = null;
+            _adminZoneNextButton = null;
+            _adminZoneListPage = 0;
 
             _stickyLastRepairText = null;
             _stickyLastRepairUntil = DateTime.MinValue;
@@ -217,6 +232,11 @@ namespace SafeZoneRepair
             _toggleRepairButton = null;
             _forceRescanButton = null;
             _closeMenuButton = null;
+            _adminZonesListLabel = null;
+            _adminZoneSelectButtons = null;
+            _adminZonePrevButton = null;
+            _adminZoneNextButton = null;
+            _adminZoneListPage = 0;
 
             _stickyLastRepairText = null;
             _stickyLastRepairUntil = DateTime.MinValue;
@@ -317,41 +337,53 @@ namespace SafeZoneRepair
             {
                 ParentAlignment = ParentAlignments.InnerTopLeft,
                 Offset = new Vector2(20f, -20f),
-                Size = new Vector2(520f, 660f),
+                Size = new Vector2(820f, 700f),
                 Color = new Color(8, 14, 20, 225),
                 Visible = false
             };
 
-            _adminTitleLabel = CreateAdminLabel(new Vector2(18f, -14f), new Vector2(480f, 24f), 1.0f);
-            _adminZoneLabel = CreateAdminLabel(new Vector2(18f, -44f), new Vector2(480f, 20f), 0.82f);
-            _adminStatusLabel = CreateAdminLabel(new Vector2(18f, -68f), new Vector2(480f, 40f), 0.74f, TextBuilderModes.Wrapped);
-            _adminNameLabel = CreateAdminLabel(new Vector2(18f, -118f), new Vector2(140f, 24f), 0.80f);
-            _adminEnabledLabel = CreateAdminLabel(new Vector2(18f, -170f), new Vector2(140f, 24f), 0.80f);
-            _adminSpeedLabel = CreateAdminLabel(new Vector2(18f, -222f), new Vector2(140f, 24f), 0.80f);
-            _adminCostLabel = CreateAdminLabel(new Vector2(18f, -274f), new Vector2(140f, 24f), 0.80f);
-            _adminProjectionSpeedLabel = CreateAdminLabel(new Vector2(18f, -326f), new Vector2(140f, 24f), 0.80f);
-            _adminProjLabel = CreateAdminLabel(new Vector2(18f, -378f), new Vector2(140f, 24f), 0.80f);
-            _adminDebugModeLabel = CreateAdminLabel(new Vector2(18f, -430f), new Vector2(140f, 24f), 0.80f);
-            _adminDebugOutputLabel = CreateAdminLabel(new Vector2(18f, -530f), new Vector2(200f, 22f), 0.76f);
-            _adminDebugTextLabel = CreateAdminLabel(new Vector2(18f, -556f), new Vector2(472f, 88f), 0.64f, TextBuilderModes.Wrapped);
+            _adminTitleLabel = CreateAdminLabel(new Vector2(18f, -14f), new Vector2(780f, 24f), 1.0f);
+            _adminZonesListLabel = CreateAdminLabel(new Vector2(18f, -48f), new Vector2(220f, 22f), 0.82f);
+            _adminZoneLabel = CreateAdminLabel(new Vector2(280f, -48f), new Vector2(500f, 20f), 0.82f);
+            _adminStatusLabel = CreateAdminLabel(new Vector2(280f, -74f), new Vector2(500f, 40f), 0.74f, TextBuilderModes.Wrapped);
+            _adminNameLabel = CreateAdminLabel(new Vector2(280f, -132f), new Vector2(150f, 24f), 0.80f);
+            _adminEnabledLabel = CreateAdminLabel(new Vector2(280f, -184f), new Vector2(150f, 24f), 0.80f);
+            _adminSpeedLabel = CreateAdminLabel(new Vector2(280f, -236f), new Vector2(150f, 24f), 0.80f);
+            _adminCostLabel = CreateAdminLabel(new Vector2(280f, -288f), new Vector2(150f, 24f), 0.80f);
+            _adminProjectionSpeedLabel = CreateAdminLabel(new Vector2(280f, -340f), new Vector2(150f, 24f), 0.80f);
+            _adminProjLabel = CreateAdminLabel(new Vector2(280f, -392f), new Vector2(150f, 24f), 0.80f);
+            _adminDebugModeLabel = CreateAdminLabel(new Vector2(280f, -444f), new Vector2(150f, 24f), 0.80f);
+            _adminDebugOutputLabel = CreateAdminLabel(new Vector2(280f, -548f), new Vector2(200f, 22f), 0.76f);
+            _adminDebugTextLabel = CreateAdminLabel(new Vector2(280f, -574f), new Vector2(500f, 104f), 0.64f, TextBuilderModes.Wrapped);
 
-            _adminZoneNameField = CreateAdminTextField(new Vector2(170f, -112f), new Vector2(320f, 34f));
-            _adminWeldingSpeedField = CreateAdminTextField(new Vector2(170f, -216f), new Vector2(120f, 34f));
-            _adminCostModifierField = CreateAdminTextField(new Vector2(170f, -268f), new Vector2(120f, 34f));
-            _adminProjectionSpeedField = CreateAdminTextField(new Vector2(170f, -320f), new Vector2(120f, 34f));
+            _adminZoneNameField = CreateAdminTextField(new Vector2(440f, -126f), new Vector2(340f, 34f));
+            _adminWeldingSpeedField = CreateAdminTextField(new Vector2(440f, -230f), new Vector2(120f, 34f));
+            _adminCostModifierField = CreateAdminTextField(new Vector2(440f, -282f), new Vector2(120f, 34f));
+            _adminProjectionSpeedField = CreateAdminTextField(new Vector2(440f, -334f), new Vector2(120f, 34f));
 
-            _adminToggleEnabledButton = CreateAdminButton(new Vector2(170f, -164f), new Vector2(140f, 36f), "Toggle");
-            _adminToggleProjectionsButton = CreateAdminButton(new Vector2(170f, -372f), new Vector2(140f, 36f), "Toggle");
-            _adminToggleDebugModeButton = CreateAdminButton(new Vector2(170f, -424f), new Vector2(140f, 36f), "Toggle");
-            _adminSpeedMinusButton = CreateAdminButton(new Vector2(302f, -216f), new Vector2(56f, 34f), "-");
-            _adminSpeedPlusButton = CreateAdminButton(new Vector2(366f, -216f), new Vector2(56f, 34f), "+");
-            _adminCostMinusButton = CreateAdminButton(new Vector2(302f, -268f), new Vector2(56f, 34f), "-");
-            _adminCostPlusButton = CreateAdminButton(new Vector2(366f, -268f), new Vector2(56f, 34f), "+");
-            _adminProjectionSpeedMinusButton = CreateAdminButton(new Vector2(302f, -320f), new Vector2(56f, 34f), "-");
-            _adminProjectionSpeedPlusButton = CreateAdminButton(new Vector2(366f, -320f), new Vector2(56f, 34f), "+");
-            _adminApplyButton = CreateAdminButton(new Vector2(18f, -476f), new Vector2(140f, 34f), "Apply");
-            _adminLoadConfigButton = CreateAdminButton(new Vector2(176f, -476f), new Vector2(140f, 34f), "Load cfg");
-            _adminCloseButton = CreateAdminButton(new Vector2(350f, -476f), new Vector2(140f, 34f), "Close");
+            _adminToggleEnabledButton = CreateAdminButton(new Vector2(440f, -178f), new Vector2(140f, 36f), "Toggle");
+            _adminToggleProjectionsButton = CreateAdminButton(new Vector2(440f, -386f), new Vector2(140f, 36f), "Toggle");
+            _adminToggleDebugModeButton = CreateAdminButton(new Vector2(440f, -438f), new Vector2(140f, 36f), "Toggle");
+            _adminSpeedMinusButton = CreateAdminButton(new Vector2(572f, -230f), new Vector2(56f, 34f), "-");
+            _adminSpeedPlusButton = CreateAdminButton(new Vector2(636f, -230f), new Vector2(56f, 34f), "+");
+            _adminCostMinusButton = CreateAdminButton(new Vector2(572f, -282f), new Vector2(56f, 34f), "-");
+            _adminCostPlusButton = CreateAdminButton(new Vector2(636f, -282f), new Vector2(56f, 34f), "+");
+            _adminProjectionSpeedMinusButton = CreateAdminButton(new Vector2(572f, -334f), new Vector2(56f, 34f), "-");
+            _adminProjectionSpeedPlusButton = CreateAdminButton(new Vector2(636f, -334f), new Vector2(56f, 34f), "+");
+            _adminApplyButton = CreateAdminButton(new Vector2(280f, -494f), new Vector2(150f, 34f), "Apply");
+            _adminLoadConfigButton = CreateAdminButton(new Vector2(448f, -494f), new Vector2(150f, 34f), "Load cfg");
+            _adminCloseButton = CreateAdminButton(new Vector2(630f, -494f), new Vector2(150f, 34f), "Close");
+
+            _adminZonePrevButton = CreateAdminButton(new Vector2(18f, -298f), new Vector2(92f, 32f), "Prev");
+            _adminZoneNextButton = CreateAdminButton(new Vector2(146f, -298f), new Vector2(92f, 32f), "Next");
+            _adminZoneSelectButtons = new BorderedButton[AdminZoneListPageSize];
+            for (int i = 0; i < AdminZoneListPageSize; i++)
+            {
+                float y = -84f - (i * 42f);
+                _adminZoneSelectButtons[i] = CreateAdminButton(new Vector2(18f, y), new Vector2(220f, 34f), "-");
+                if (_adminZoneSelectButtons[i] != null)
+                    _adminZoneSelectButtons[i].Format = new GlyphFormat(Color.White, TextAlignment.Left, 0.68f);
+            }
 
             if (_adminZoneNameField != null)
                 _adminZoneNameField.CharFilterFunc = ch => ch >= 32 && ch < 127;
@@ -362,6 +394,19 @@ namespace SafeZoneRepair
             if (_adminProjectionSpeedField != null)
                 _adminProjectionSpeedField.CharFilterFunc = ch => char.IsDigit(ch) || ch == '.' || ch == ',' || ch == '-';
 
+            if (_adminZonePrevButton != null)
+                _adminZonePrevButton.MouseInput.LeftClicked += AdminZonePrevClicked;
+            if (_adminZoneNextButton != null)
+                _adminZoneNextButton.MouseInput.LeftClicked += AdminZoneNextClicked;
+            if (_adminZoneSelectButtons != null)
+            {
+                for (int i = 0; i < _adminZoneSelectButtons.Length; i++)
+                {
+                    int slot = i;
+                    if (_adminZoneSelectButtons[i] != null)
+                        _adminZoneSelectButtons[i].MouseInput.LeftClicked += (sender, args) => AdminZoneSelectClicked(slot);
+                }
+            }
             if (_adminToggleEnabledButton != null)
                 _adminToggleEnabledButton.MouseInput.LeftClicked += AdminToggleEnabledClicked;
             if (_adminToggleProjectionsButton != null)
@@ -446,6 +491,74 @@ namespace SafeZoneRepair
             _adminPanelFieldsDirty = true;
         }
 
+        private void UpdateAdminZoneListButtons(AdminZoneConfigStateMessage state)
+        {
+            var entries = state.ZoneEntries ?? new System.Collections.Generic.List<AdminZoneListEntryMessage>();
+            int totalPages = Math.Max(1, (entries.Count + AdminZoneListPageSize - 1) / AdminZoneListPageSize);
+            if (_adminZoneListPage >= totalPages)
+                _adminZoneListPage = totalPages - 1;
+            if (_adminZoneListPage < 0)
+                _adminZoneListPage = 0;
+
+            int selectedIndex = -1;
+            for (int i = 0; i < entries.Count; i++)
+            {
+                if (entries[i].ZoneEntityId == state.SelectedZoneEntityId)
+                {
+                    selectedIndex = i;
+                    break;
+                }
+            }
+            if (selectedIndex >= 0)
+            {
+                int pageStart = _adminZoneListPage * AdminZoneListPageSize;
+                int pageEnd = pageStart + AdminZoneListPageSize;
+                if (selectedIndex < pageStart || selectedIndex >= pageEnd)
+                    _adminZoneListPage = selectedIndex / AdminZoneListPageSize;
+            }
+
+            if (_adminZonesListLabel != null)
+            {
+                int start = entries.Count == 0 ? 0 : (_adminZoneListPage * AdminZoneListPageSize) + 1;
+                int end = Math.Min(entries.Count, (_adminZoneListPage + 1) * AdminZoneListPageSize);
+                _adminZonesListLabel.Text = string.Format("Zones {0}-{1}/{2}", start, end, entries.Count);
+            }
+
+            if (_adminZoneSelectButtons != null)
+            {
+                for (int i = 0; i < _adminZoneSelectButtons.Length; i++)
+                {
+                    var button = _adminZoneSelectButtons[i];
+                    if (button == null)
+                        continue;
+
+                    int index = (_adminZoneListPage * AdminZoneListPageSize) + i;
+                    if (index < entries.Count)
+                    {
+                        var entry = entries[index];
+                        string prefix = entry.ZoneEntityId == state.SelectedZoneEntityId ? "> " : string.Empty;
+                        if (entry.IsPlayerInside)
+                            prefix += "[Here] ";
+                        button.Text = TruncateText(prefix + (entry.ZoneName ?? "Unnamed zone"), 26);
+                        bool isSelected = entry.ZoneEntityId == state.SelectedZoneEntityId;
+                        button.Color = isSelected ? new Color(52, 86, 110, 230) : new Color(24, 40, 54, 230);
+                        button.BorderColor = isSelected ? new Color(150, 210, 240, 230) : new Color(110, 140, 170, 230);
+                        button.Visible = true;
+                    }
+                    else
+                    {
+                        button.Text = "-";
+                        button.Visible = false;
+                    }
+                }
+            }
+
+            if (_adminZonePrevButton != null)
+                _adminZonePrevButton.Visible = entries.Count > AdminZoneListPageSize;
+            if (_adminZoneNextButton != null)
+                _adminZoneNextButton.Visible = entries.Count > AdminZoneListPageSize;
+        }
+
         private void UpdateAdminPanelState()
         {
             if (_adminPanel == null)
@@ -457,13 +570,16 @@ namespace SafeZoneRepair
                 return;
 
             var state = _adminZoneState ?? new AdminZoneConfigStateMessage();
+            if (state.ZoneEntries == null)
+                state.ZoneEntries = new System.Collections.Generic.List<AdminZoneListEntryMessage>();
+
             if (_adminTitleLabel != null)
                 _adminTitleLabel.Text = "ZERO's Safe Zone Admin";
             if (_adminZoneLabel != null)
-                _adminZoneLabel.Text = string.IsNullOrWhiteSpace(state.ZoneName) ? "Zone: -" : "Zone: " + state.ZoneName;
+                _adminZoneLabel.Text = string.IsNullOrWhiteSpace(state.ZoneName) ? "Selected zone: -" : "Selected zone: " + state.ZoneName;
             if (_adminStatusLabel != null)
                 _adminStatusLabel.Text = state.Success
-                    ? "Edit the zone values below, then press Apply. Load cfg also refreshes the debug snapshot."
+                    ? "Select any zone on the left to edit it remotely. Apply saves the selected zone."
                     : (string.IsNullOrWhiteSpace(state.ErrorText) ? "Admin panel unavailable." : state.ErrorText);
             if (_adminNameLabel != null)
                 _adminNameLabel.Text = "Zone name";
@@ -481,6 +597,9 @@ namespace SafeZoneRepair
                 _adminDebugModeLabel.Text = "Debug mode";
             if (_adminDebugOutputLabel != null)
                 _adminDebugOutputLabel.Text = "Debug output";
+
+            UpdateAdminZoneListButtons(state);
+
             if (_adminPanelFieldsDirty)
             {
                 if (_adminZoneNameField != null && !_adminZoneNameField.InputOpen)
@@ -501,6 +620,52 @@ namespace SafeZoneRepair
                 _adminToggleDebugModeButton.Text = state.DebugMode ? "Enabled" : "Disabled";
             if (_adminDebugTextLabel != null)
                 _adminDebugTextLabel.Text = string.IsNullOrWhiteSpace(state.DebugText) ? (state.DebugMode ? "Debug snapshot is empty." : "Debug mode is OFF.") : state.DebugText;
+        }
+
+        private void AdminZonePrevClicked(object sender, EventArgs e)
+        {
+            if (_adminZoneListPage > 0)
+            {
+                _adminZoneListPage--;
+                UpdateAdminPanelState();
+            }
+        }
+
+        private void AdminZoneNextClicked(object sender, EventArgs e)
+        {
+            var entries = _adminZoneState != null && _adminZoneState.ZoneEntries != null
+                ? _adminZoneState.ZoneEntries.Count
+                : 0;
+            int totalPages = Math.Max(1, (entries + AdminZoneListPageSize - 1) / AdminZoneListPageSize);
+            if (_adminZoneListPage < totalPages - 1)
+            {
+                _adminZoneListPage++;
+                UpdateAdminPanelState();
+            }
+        }
+
+        private void AdminZoneSelectClicked(int slot)
+        {
+            try
+            {
+                if (_adminZoneState == null || _adminZoneState.ZoneEntries == null)
+                    return;
+
+                int index = (_adminZoneListPage * AdminZoneListPageSize) + slot;
+                if (index < 0 || index >= _adminZoneState.ZoneEntries.Count)
+                    return;
+
+                var entry = _adminZoneState.ZoneEntries[index];
+                if (entry == null || entry.ZoneEntityId == 0)
+                    return;
+
+                MarkAdminPanelDirty();
+                RequestAdminZoneConfig(false, entry.ZoneEntityId);
+            }
+            catch (Exception ex)
+            {
+                LogError("AdminZoneSelectClicked error: " + ex);
+            }
         }
 
         private bool TryParseAdminFloat(TextField field, out float value)
@@ -630,7 +795,7 @@ namespace SafeZoneRepair
         private void AdminLoadConfigClicked(object sender, EventArgs e)
         {
             MarkAdminPanelDirty();
-            RequestAdminZoneConfig(true);
+            RequestAdminZoneConfig(true, _adminZoneState != null ? _adminZoneState.SelectedZoneEntityId : 0L);
         }
 
         private void AdminCloseClicked(object sender, EventArgs e)

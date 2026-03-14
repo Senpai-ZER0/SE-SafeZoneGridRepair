@@ -108,6 +108,7 @@ namespace SafeZoneRepair
 
         private bool _adminPanelRequested = false;
         private AdminZoneConfigStateMessage _adminZoneState = new AdminZoneConfigStateMessage();
+        private const int AdminZoneListPageSize = 5;
 
         private sealed class EstimatedRepairCostCacheEntry
         {
@@ -980,22 +981,12 @@ namespace SafeZoneRepair
             return false;
         }
 
-        private bool TryGetAdminContext(IMyPlayer player, out MySafeZone zone, out SafeZoneConfig cfg)
+        private SafeZoneConfig EnsureZoneConfig(MySafeZone zone)
         {
-            zone = null;
-            cfg = null;
-
-            if (!IsPlayerAdmin(player))
-                return false;
-
-            Vector3D pos;
-            if (!TryGetPlayerPosition(player, out pos))
-                return false;
-
-            zone = GetSafeZoneForPosition(pos);
             if (zone == null)
-                return false;
+                return null;
 
+            SafeZoneConfig cfg;
             if (!zoneConfigs.TryGetValue(zone.EntityId, out cfg) || cfg == null)
             {
                 string zoneName = GetSafeZoneDefaultName(zone);
@@ -1018,7 +1009,165 @@ namespace SafeZoneRepair
                 SaveConfig(new List<SafeZoneConfig>(zoneConfigs.Values));
             }
 
-            return true;
+            return cfg;
+        }
+
+        private bool TryGetSafeZoneByEntityId(long zoneEntityId, out MySafeZone zone)
+        {
+            zone = null;
+            if (zoneEntityId == 0)
+                return false;
+
+            for (int i = 0; i < safeZones.Count; i++)
+            {
+                var candidate = safeZones[i];
+                if (candidate != null && !candidate.MarkedForClose && candidate.EntityId == zoneEntityId)
+                {
+                    zone = candidate;
+                    return true;
+                }
+            }
+
+            IMyEntity entity;
+            if (MyAPIGateway.Entities != null && MyAPIGateway.Entities.TryGetEntityById(zoneEntityId, out entity))
+            {
+                zone = entity as MySafeZone;
+                if (zone != null && !zone.MarkedForClose)
+                    return true;
+            }
+
+            return false;
+        }
+
+        private string GetAdminZoneDisplayName(MySafeZone zone)
+        {
+            var cfg = EnsureZoneConfig(zone);
+            if (cfg != null)
+            {
+                if (!string.IsNullOrWhiteSpace(cfg.DisplayName))
+                    return cfg.DisplayName;
+                if (!string.IsNullOrWhiteSpace(cfg.ZoneName))
+                    return cfg.ZoneName;
+            }
+
+            return GetSafeZoneDefaultName(zone);
+        }
+
+        private List<MySafeZone> GetSortedSafeZones()
+        {
+            var list = new List<MySafeZone>();
+            var seenZoneIds = new HashSet<long>();
+            for (int i = 0; i < safeZones.Count; i++)
+            {
+                var zone = safeZones[i];
+                if (zone == null || zone.MarkedForClose)
+                    continue;
+
+                if (!seenZoneIds.Add(zone.EntityId))
+                    continue;
+
+                list.Add(zone);
+            }
+
+            list.Sort((a, b) =>
+            {
+                string nameA = GetAdminZoneDisplayName(a).ToLowerInvariant();
+                string nameB = GetAdminZoneDisplayName(b).ToLowerInvariant();
+                int byName = string.Compare(nameA, nameB, StringComparison.Ordinal);
+                if (byName != 0)
+                    return byName;
+                return a.EntityId.CompareTo(b.EntityId);
+            });
+
+            return list;
+        }
+
+        private string FormatAdminZoneListName(string zoneName, long zoneEntityId, Dictionary<string, int> duplicateNameCounts)
+        {
+            string safeName = string.IsNullOrWhiteSpace(zoneName) ? "Unnamed zone" : zoneName.Trim();
+            int duplicateCount;
+            if (duplicateNameCounts != null && duplicateNameCounts.TryGetValue(safeName, out duplicateCount) && duplicateCount > 1)
+            {
+                string idText = Math.Abs(zoneEntityId).ToString();
+                if (idText.Length > 4)
+                    idText = idText.Substring(idText.Length - 4);
+                safeName += " [" + idText + "]";
+            }
+
+            return safeName;
+        }
+
+        private List<AdminZoneListEntryMessage> BuildAdminZoneList(long selectedZoneEntityId, long playerZoneEntityId)
+        {
+            var entries = new List<AdminZoneListEntryMessage>();
+            var zones = GetSortedSafeZones();
+            var duplicateNameCounts = new Dictionary<string, int>(StringComparer.OrdinalIgnoreCase);
+
+            for (int i = 0; i < zones.Count; i++)
+            {
+                string baseName = GetAdminZoneDisplayName(zones[i]);
+                string key = string.IsNullOrWhiteSpace(baseName) ? "Unnamed zone" : baseName.Trim();
+                int count;
+                duplicateNameCounts.TryGetValue(key, out count);
+                duplicateNameCounts[key] = count + 1;
+            }
+
+            for (int i = 0; i < zones.Count; i++)
+            {
+                var zone = zones[i];
+                entries.Add(new AdminZoneListEntryMessage
+                {
+                    ZoneEntityId = zone.EntityId,
+                    ZoneName = FormatAdminZoneListName(GetAdminZoneDisplayName(zone), zone.EntityId, duplicateNameCounts),
+                    IsPlayerInside = playerZoneEntityId != 0 && zone.EntityId == playerZoneEntityId
+                });
+            }
+
+            return entries;
+        }
+
+        private bool TryResolveAdminZone(IMyPlayer player, long requestedZoneEntityId, out MySafeZone zone, out SafeZoneConfig cfg, out long playerZoneEntityId)
+        {
+            zone = null;
+            cfg = null;
+            playerZoneEntityId = 0L;
+
+            if (!IsPlayerAdmin(player))
+                return false;
+
+            Vector3D pos;
+            if (TryGetPlayerPosition(player, out pos))
+            {
+                var currentZone = GetSafeZoneForPosition(pos);
+                if (currentZone != null)
+                    playerZoneEntityId = currentZone.EntityId;
+            }
+
+            if (requestedZoneEntityId != 0 && TryGetSafeZoneByEntityId(requestedZoneEntityId, out zone))
+            {
+                cfg = EnsureZoneConfig(zone);
+                return zone != null && cfg != null;
+            }
+
+            if (playerZoneEntityId != 0 && TryGetSafeZoneByEntityId(playerZoneEntityId, out zone))
+            {
+                cfg = EnsureZoneConfig(zone);
+                return zone != null && cfg != null;
+            }
+
+            var zones = GetSortedSafeZones();
+            if (zones.Count == 0)
+                return false;
+
+            zone = zones[0];
+            cfg = EnsureZoneConfig(zone);
+            return zone != null && cfg != null;
+        }
+
+        private bool TryGetAdminContext(IMyPlayer player, out MySafeZone zone, out SafeZoneConfig cfg)
+        {
+            long playerZoneEntityId;
+            return TryResolveAdminZone(player, 0L, out zone, out cfg, out playerZoneEntityId);
         }
 
         private void ToggleAdminPanelForLocalContext()
@@ -1042,7 +1191,7 @@ namespace SafeZoneRepair
 
                 _adminPanelRequested = true;
                 MarkAdminPanelDirty();
-                RequestAdminZoneConfig(false);
+                RequestAdminZoneConfig(false, _adminZoneState != null ? _adminZoneState.SelectedZoneEntityId : 0L);
                 RefreshUiCursorState();
                 UpdateAdminPanelState();
             }
@@ -1057,7 +1206,7 @@ namespace SafeZoneRepair
             SetInteractiveCursorEnabled(_cockpitInteractiveRequested || _adminPanelRequested);
         }
 
-        private void RequestAdminZoneConfig(bool reload)
+        private void RequestAdminZoneConfig(bool reload, long targetZoneEntityId = 0L)
         {
             try
             {
@@ -1068,7 +1217,8 @@ namespace SafeZoneRepair
                 var msg = new AdminZoneConfigRequestMessage
                 {
                     PlayerId = player.IdentityId,
-                    ReloadFromDisk = reload
+                    ReloadFromDisk = reload,
+                    TargetZoneEntityId = targetZoneEntityId
                 };
                 byte[] data = MyAPIGateway.Utilities.SerializeToBinary(msg);
                 MyAPIGateway.Multiplayer.SendMessageToServer(AdminZoneConfigRequestSyncId, data);
@@ -2727,7 +2877,7 @@ namespace SafeZoneRepair
             return sb.ToString();
         }
 
-        private void SendAdminZoneConfigStateToPlayer(IMyPlayer player, bool success, string errorText, MySafeZone zone, SafeZoneConfig cfg)
+        private void SendAdminZoneConfigStateToPlayer(IMyPlayer player, bool success, string errorText, MySafeZone zone, SafeZoneConfig cfg, long selectedZoneEntityId, long playerZoneEntityId)
         {
             if (player == null || !MyAPIGateway.Multiplayer.IsServer)
                 return;
@@ -2745,7 +2895,9 @@ namespace SafeZoneRepair
                 AllowProjections = cfg?.AllowProjections ?? false,
                 ProjectionWeldingSpeed = cfg?.ProjectionWeldingSpeed ?? 1f,
                 DebugMode = cfg != null && cfg.DebugMode,
-                DebugText = BuildAdminDebugText(player, zone, cfg)
+                DebugText = BuildAdminDebugText(player, zone, cfg),
+                SelectedZoneEntityId = selectedZoneEntityId,
+                ZoneEntries = BuildAdminZoneList(selectedZoneEntityId, playerZoneEntityId)
             };
 
             byte[] data = MyAPIGateway.Utilities.SerializeToBinary(msg);
@@ -2769,13 +2921,14 @@ namespace SafeZoneRepair
 
                 MySafeZone zone;
                 SafeZoneConfig cfg;
-                if (!TryGetAdminContext(player, out zone, out cfg))
+                long playerZoneEntityId;
+                if (!TryResolveAdminZone(player, msg.TargetZoneEntityId, out zone, out cfg, out playerZoneEntityId))
                 {
-                    SendAdminZoneConfigStateToPlayer(player, false, "Admin access requires being inside a safe zone.", null, null);
+                    SendAdminZoneConfigStateToPlayer(player, false, "No safe zones available for remote admin editing.", null, null, msg.TargetZoneEntityId, playerZoneEntityId);
                     return;
                 }
 
-                SendAdminZoneConfigStateToPlayer(player, true, null, zone, cfg);
+                SendAdminZoneConfigStateToPlayer(player, true, null, zone, cfg, zone != null ? zone.EntityId : msg.TargetZoneEntityId, playerZoneEntityId);
             }
             catch (Exception ex)
             {
@@ -2792,17 +2945,20 @@ namespace SafeZoneRepair
                     return;
 
                 var player = GetPlayerByIdentityId(msg.PlayerId);
-                if (player == null)
+                if (player == null || !IsPlayerAdmin(player))
                     return;
 
                 MySafeZone zone;
-                SafeZoneConfig cfg;
-                if (!TryGetAdminContext(player, out zone, out cfg) || zone == null || zone.EntityId != msg.ZoneEntityId)
+                if (!TryGetSafeZoneByEntityId(msg.ZoneEntityId, out zone) || zone == null)
                 {
-                    SendAdminZoneConfigStateToPlayer(player, false, "Zone context invalid.", zone, cfg);
+                    long playerZoneEntityId;
+                    Vector3D pos;
+                    playerZoneEntityId = TryGetPlayerPosition(player, out pos) && GetSafeZoneForPosition(pos) != null ? GetSafeZoneForPosition(pos).EntityId : 0L;
+                    SendAdminZoneConfigStateToPlayer(player, false, "Selected zone no longer exists.", null, null, msg.ZoneEntityId, playerZoneEntityId);
                     return;
                 }
 
+                var cfg = EnsureZoneConfig(zone);
                 cfg.ZoneName = string.IsNullOrWhiteSpace(msg.ZoneName) ? GetSafeZoneDefaultName(zone) : msg.ZoneName.Trim();
                 cfg.DisplayName = cfg.ZoneName;
                 cfg.Enabled = msg.Enabled;
@@ -2817,7 +2973,11 @@ namespace SafeZoneRepair
                 zoneConfigs[zone.EntityId] = cfg;
                 SaveConfig(new List<SafeZoneConfig>(zoneConfigs.Values));
 
-                SendAdminZoneConfigStateToPlayer(player, true, "Zone settings applied.", zone, cfg);
+                long playerZoneEntityIdAfter;
+                Vector3D playerPos;
+                var playerZone = TryGetPlayerPosition(player, out playerPos) ? GetSafeZoneForPosition(playerPos) : null;
+                playerZoneEntityIdAfter = playerZone != null ? playerZone.EntityId : 0L;
+                SendAdminZoneConfigStateToPlayer(player, true, "Zone settings applied.", zone, cfg, zone.EntityId, playerZoneEntityIdAfter);
             }
             catch (Exception ex)
             {
@@ -2836,6 +2996,8 @@ namespace SafeZoneRepair
                 if (msg.PlayerId != 0 && msg.PlayerId != MyAPIGateway.Session?.LocalHumanPlayer?.IdentityId)
                     return;
 
+                if (msg.ZoneEntries == null)
+                    msg.ZoneEntries = new List<AdminZoneListEntryMessage>();
                 _adminZoneState = msg;
                 MarkAdminPanelDirty();
                 if (!msg.Success)

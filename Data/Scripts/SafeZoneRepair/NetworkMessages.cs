@@ -53,6 +53,15 @@ namespace SafeZoneRepair
     {
         [ProtoMember(1)] public long PlayerId;
         [ProtoMember(2)] public bool ReloadFromDisk;
+        [ProtoMember(3)] public long TargetZoneEntityId;
+    }
+
+    [ProtoContract]
+    public class AdminZoneListEntryMessage
+    {
+        [ProtoMember(1)] public long ZoneEntityId;
+        [ProtoMember(2)] public string ZoneName;
+        [ProtoMember(3)] public bool IsPlayerInside;
     }
 
     [ProtoContract]
@@ -84,5 +93,7 @@ namespace SafeZoneRepair
         [ProtoMember(10)] public float ProjectionWeldingSpeed;
         [ProtoMember(11)] public bool DebugMode;
         [ProtoMember(12)] public string DebugText;
+        [ProtoMember(13)] public long SelectedZoneEntityId;
+        [ProtoMember(14)] public System.Collections.Generic.List<AdminZoneListEntryMessage> ZoneEntries;
     }
 }
