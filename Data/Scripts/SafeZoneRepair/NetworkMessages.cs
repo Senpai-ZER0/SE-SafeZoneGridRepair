@@ -76,6 +76,8 @@ namespace SafeZoneRepair
         [ProtoMember(7)] public bool AllowProjections;
         [ProtoMember(8)] public float ProjectionWeldingSpeed;
         [ProtoMember(9)] public bool DebugMode;
+        [ProtoMember(10)] public System.Collections.Generic.List<ComponentPriceModifierEntry> ComponentPriceModifiers;
+        [ProtoMember(11)] public System.Collections.Generic.List<string> ForbiddenComponents;
     }
 
     [ProtoContract]
@@ -96,5 +98,7 @@ namespace SafeZoneRepair
         [ProtoMember(13)] public long SelectedZoneEntityId;
         [ProtoMember(14)] public System.Collections.Generic.List<AdminZoneListEntryMessage> ZoneEntries;
         [ProtoMember(15)] public string ZoneCreationType;
+        [ProtoMember(16)] public System.Collections.Generic.List<ComponentPriceModifierEntry> ComponentPriceModifiers;
+        [ProtoMember(17)] public System.Collections.Generic.List<string> ForbiddenComponents;
     }
 }

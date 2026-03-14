@@ -108,7 +108,12 @@ namespace SafeZoneRepair
         private static TextPage _rhfOverviewPage;
 
         private bool _adminPanelRequested = false;
+        private bool _adminComponentsViewRequested = false;
+        private int _adminComponentsScrollOffset = 0;
+        private readonly HashSet<string> _adminForbiddenComponentsLocal = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
         private AdminZoneConfigStateMessage _adminZoneState = new AdminZoneConfigStateMessage();
+        private const int AdminComponentsPageSize = 8;
+        private const int MouseWheelStepSize = 120;
         private const int AdminZoneListPageSize = 5;
         private const string ZoneCreationTypeAdmin = "Admin";
         private const string ZoneCreationTypeSafeZoneBlock = "SafeZoneBlock";
@@ -280,6 +285,64 @@ namespace SafeZoneRepair
             return "Repair Zone";
         }
 
+        private static List<string> CreateDefaultForbiddenComponents()
+        {
+            return new List<string>
+            {
+                "PrototechCapacitor",
+                "PrototechCircuitry",
+                "PrototechCoolingUnit",
+                "PrototechFrame",
+                "PrototechMachinery",
+                "PrototechPanel",
+                "PrototechPropulsionUnit"
+            };
+        }
+
+        private static List<string> NormalizeForbiddenComponentList(IEnumerable<string> components, bool includeBaseDefaults)
+        {
+            var set = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+
+            if (components != null)
+            {
+                foreach (var component in components)
+                {
+                    if (string.IsNullOrWhiteSpace(component))
+                        continue;
+
+                    set.Add(component.Trim());
+                }
+            }
+
+            if (includeBaseDefaults)
+            {
+                foreach (var component in CreateDefaultForbiddenComponents())
+                    set.Add(component);
+            }
+
+            var list = new List<string>(set);
+            list.Sort(StringComparer.OrdinalIgnoreCase);
+            return list;
+        }
+
+        private void SyncAdminForbiddenComponentsFromState()
+        {
+            _adminForbiddenComponentsLocal.Clear();
+            if (_adminZoneState == null || _adminZoneState.ForbiddenComponents == null)
+                return;
+
+            foreach (var component in _adminZoneState.ForbiddenComponents)
+            {
+                if (!string.IsNullOrWhiteSpace(component))
+                    _adminForbiddenComponentsLocal.Add(component.Trim());
+            }
+        }
+
+        private List<string> GetAdminForbiddenComponentsSnapshot()
+        {
+            return NormalizeForbiddenComponentList(_adminForbiddenComponentsLocal, false);
+        }
+
 
         private static string NormalizeZoneCreationTypeValue(string value)
         {
@@ -340,8 +403,7 @@ namespace SafeZoneRepair
             if (string.IsNullOrWhiteSpace(cfg.DisplayName))
                 cfg.DisplayName = cfg.ZoneName;
 
-            if (cfg.ForbiddenComponents == null)
-                cfg.ForbiddenComponents = new List<string>();
+            cfg.ForbiddenComponents = NormalizeForbiddenComponentList(cfg.ForbiddenComponents, false);
 
             if (cfg.ComponentPriceModifiers == null)
                 cfg.ComponentPriceModifiers = new List<ComponentPriceModifierEntry>();
@@ -408,6 +470,36 @@ namespace SafeZoneRepair
             return string.IsNullOrWhiteSpace(key) ? null : key;
         }
 
+        private static List<ComponentPriceModifierEntry> CloneComponentPriceModifiers(List<ComponentPriceModifierEntry> source)
+        {
+            var clone = new List<ComponentPriceModifierEntry>();
+            if (source == null)
+                return clone;
+
+            foreach (var entry in source)
+            {
+                if (entry == null)
+                    continue;
+
+                string key = NormalizeComponentModifierKey(entry.ComponentSubtypeId);
+                if (string.IsNullOrWhiteSpace(key))
+                    continue;
+
+                float value = entry.Multiplier;
+                if (float.IsNaN(value) || float.IsInfinity(value) || value < 0f)
+                    value = 0f;
+
+                clone.Add(new ComponentPriceModifierEntry
+                {
+                    ComponentSubtypeId = key,
+                    Multiplier = (float)Math.Round(value, 3)
+                });
+            }
+
+            NormalizeComponentPriceModifiers(clone);
+            return clone;
+        }
+
         private static bool TryGetComponentPriceModifier(SafeZoneConfig zoneCfg, MyDefinitionId id, out float modifier)
         {
             modifier = 1f;
@@ -454,7 +546,7 @@ namespace SafeZoneRepair
                     Enabled = true,
                     AllowProjections = true,
                     ProjectionBuildDelay = 1f,
-                    ForbiddenComponents = new List<string> { "ExampleComponent1", "ExampleComponent2" },
+                    ForbiddenComponents = NormalizeForbiddenComponentList(new[] { "ExampleComponent1", "ExampleComponent2" }, true),
                     ProjectionWeldingSpeed = 1f,
                     DebugMode = false,
                     ZoneCreationType = ZoneCreationTypeSafeZoneBlock,
@@ -477,7 +569,7 @@ namespace SafeZoneRepair
                         Enabled = true,
                         AllowProjections = true,
                         ProjectionBuildDelay = 1f,
-                        ForbiddenComponents = new List<string>(),
+                        ForbiddenComponents = NormalizeForbiddenComponentList(null, true),
                         ProjectionWeldingSpeed = 1f,
                         DebugMode = false,
                         ZoneCreationType = DetectZoneCreationType(zone),
@@ -1146,7 +1238,7 @@ namespace SafeZoneRepair
                     Enabled = true,
                     AllowProjections = true,
                     ProjectionBuildDelay = 1f,
-                    ForbiddenComponents = new List<string>(),
+                    ForbiddenComponents = NormalizeForbiddenComponentList(null, true),
                     ProjectionWeldingSpeed = 1f,
                     DebugMode = false,
                     ZoneCreationType = DetectZoneCreationType(zone),
@@ -1352,7 +1444,7 @@ namespace SafeZoneRepair
 
         private void RefreshUiCursorState()
         {
-            SetInteractiveCursorEnabled(_cockpitInteractiveRequested || _adminPanelRequested);
+            SetInteractiveCursorEnabled(_cockpitInteractiveRequested || _adminPanelRequested || _adminPriceModsPanelRequested);
         }
 
         private void RequestAdminZoneConfig(bool reload, long targetZoneEntityId = 0L)
@@ -1378,7 +1470,7 @@ namespace SafeZoneRepair
             }
         }
 
-        private void SendAdminZoneConfigUpdateFromClient(string zoneName, bool enabled, float weldingSpeedValue, float costModifierValue, bool allowProjections, float projectionWeldingSpeedValue, bool debugMode)
+        private void SendAdminZoneConfigUpdateFromClient(string zoneName, bool enabled, float weldingSpeedValue, float costModifierValue, bool allowProjections, float projectionWeldingSpeedValue, bool debugMode, List<string> forbiddenComponents, List<ComponentPriceModifierEntry> componentPriceModifiers)
         {
             try
             {
@@ -1396,7 +1488,9 @@ namespace SafeZoneRepair
                     CostModifier = costModifierValue,
                     AllowProjections = allowProjections,
                     ProjectionWeldingSpeed = projectionWeldingSpeedValue,
-                    DebugMode = debugMode
+                    DebugMode = debugMode,
+                    ComponentPriceModifiers = CloneComponentPriceModifiers(componentPriceModifiers),
+                    ForbiddenComponents = NormalizeForbiddenComponentList(forbiddenComponents, false)
                 };
                 byte[] data = MyAPIGateway.Utilities.SerializeToBinary(msg);
                 MyAPIGateway.Multiplayer.SendMessageToServer(AdminZoneConfigUpdateSyncId, data);
@@ -1581,12 +1675,84 @@ namespace SafeZoneRepair
             }
         }
         // --- Основной цикл обновления ---
+        private int GetAdminComponentsMaxScrollOffset()
+        {
+            if (_adminComponentCatalog == null || _adminComponentCatalog.Count <= AdminComponentsPageSize)
+                return 0;
+
+            return _adminComponentCatalog.Count - AdminComponentsPageSize;
+        }
+
+        private void ClampAdminComponentsScrollOffset()
+        {
+            if (_adminComponentsScrollOffset < 0)
+                _adminComponentsScrollOffset = 0;
+
+            int maxOffset = GetAdminComponentsMaxScrollOffset();
+            if (_adminComponentsScrollOffset > maxOffset)
+                _adminComponentsScrollOffset = maxOffset;
+        }
+
+        private int NormalizeMouseWheelToRowDelta(int wheelDelta)
+        {
+            if (wheelDelta == 0)
+                return 0;
+
+            int stepMagnitude = Math.Abs(wheelDelta) / MouseWheelStepSize;
+            if (stepMagnitude <= 0)
+                stepMagnitude = 1;
+
+            return wheelDelta > 0 ? -stepMagnitude : stepMagnitude;
+        }
+
+        private void ScrollAdminComponentsByRows(int rowDelta)
+        {
+            if (!_adminPanelRequested || !_adminComponentsViewRequested || rowDelta == 0)
+                return;
+
+            EnsureAdminComponentCatalogBuilt();
+            if (_adminComponentCatalog == null || _adminComponentCatalog.Count <= 0)
+                return;
+
+            int oldOffset = _adminComponentsScrollOffset;
+            _adminComponentsScrollOffset += rowDelta;
+            ClampAdminComponentsScrollOffset();
+
+            if (oldOffset != _adminComponentsScrollOffset)
+                UpdateAdminPanelState();
+        }
+
+        private void UpdateAdminComponentsScrollInput()
+        {
+            try
+            {
+                if (!_adminPanelRequested || !_adminComponentsViewRequested)
+                    return;
+
+                if (MyAPIGateway.Gui == null || MyAPIGateway.Input == null)
+                    return;
+
+                if (MyAPIGateway.Gui.ChatEntryVisible)
+                    return;
+
+                int wheelDelta = MyAPIGateway.Input.DeltaMouseScrollWheelValue();
+                int rowDelta = NormalizeMouseWheelToRowDelta(wheelDelta);
+                if (rowDelta != 0)
+                    ScrollAdminComponentsByRows(rowDelta);
+            }
+            catch (Exception ex)
+            {
+                LogError($"UpdateAdminComponentsScrollInput error: {ex}");
+            }
+        }
+
         public override void UpdateAfterSimulation()
         {
             if (MyAPIGateway.Utilities != null && !MyAPIGateway.Utilities.IsDedicated)
             {
                 UpdateClientHotkeys();
                 UpdateClientHudVisibility();
+                UpdateAdminComponentsScrollInput();
             }
 
             if (!MyAPIGateway.Multiplayer.IsServer)
@@ -1772,7 +1938,7 @@ namespace SafeZoneRepair
                         Enabled = true,
                         AllowProjections = true,
                         ProjectionBuildDelay = 1f,
-                        ForbiddenComponents = new List<string>(),
+                        ForbiddenComponents = NormalizeForbiddenComponentList(null, true),
                         ProjectionWeldingSpeed = 1f,
                         DebugMode = false,
                         ZoneCreationType = DetectZoneCreationType(zone),
@@ -3062,7 +3228,9 @@ namespace SafeZoneRepair
                 DebugText = BuildAdminDebugText(player, zone, cfg),
                 SelectedZoneEntityId = selectedZoneEntityId,
                 ZoneEntries = BuildAdminZoneList(selectedZoneEntityId, playerZoneEntityId),
-                ZoneCreationType = cfg != null ? NormalizeZoneCreationTypeValue(cfg.ZoneCreationType) : ZoneCreationTypeSafeZoneBlock
+                ZoneCreationType = cfg != null ? NormalizeZoneCreationTypeValue(cfg.ZoneCreationType) : ZoneCreationTypeSafeZoneBlock,
+                ComponentPriceModifiers = cfg != null ? CloneComponentPriceModifiers(cfg.ComponentPriceModifiers) : new List<ComponentPriceModifierEntry>(),
+                ForbiddenComponents = cfg != null ? NormalizeForbiddenComponentList(cfg.ForbiddenComponents, false) : new List<string>()
             };
 
             byte[] data = MyAPIGateway.Utilities.SerializeToBinary(msg);
@@ -3133,6 +3301,8 @@ namespace SafeZoneRepair
                 cfg.ProjectionWeldingSpeed = (float)Math.Round(Math.Max(0.001f, msg.ProjectionWeldingSpeed), 2);
                 cfg.ProjectionBuildDelay = (float)Math.Round(1f / Math.Max(0.001f, cfg.ProjectionWeldingSpeed), 2);
                 cfg.DebugMode = msg.DebugMode;
+                cfg.ComponentPriceModifiers = CloneComponentPriceModifiers(msg.ComponentPriceModifiers);
+                cfg.ForbiddenComponents = NormalizeForbiddenComponentList(msg.ForbiddenComponents, false);
                 cfg.ZoneEntityId = zone.EntityId;
                 cfg.ZoneCreationType = DetectZoneCreationType(zone);
                 NormalizeZoneConfig(cfg);
@@ -3164,15 +3334,24 @@ namespace SafeZoneRepair
 
                 if (msg.ZoneEntries == null)
                     msg.ZoneEntries = new List<AdminZoneListEntryMessage>();
+                if (msg.ComponentPriceModifiers == null)
+                    msg.ComponentPriceModifiers = new List<ComponentPriceModifierEntry>();
+                if (msg.ForbiddenComponents == null)
+                    msg.ForbiddenComponents = new List<string>();
                 _adminZoneState = msg;
+                SyncAdminForbiddenComponentsFromState();
                 MarkAdminPanelDirty();
+                if (_adminPriceModsPanelRequested)
+                    SyncAdminPriceModifiersFromState();
                 if (!msg.Success)
                 {
                     _adminPanelRequested = false;
+                    _adminPriceModsPanelRequested = false;
                     RefreshUiCursorState();
                 }
 
                 UpdateAdminPanelState();
+                UpdateAdminPriceModsPanelState();
             }
             catch (Exception ex)
             {
