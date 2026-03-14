@@ -60,6 +60,7 @@ namespace SafeZoneRepair
         private Dictionary<IMyCubeGrid, bool> gridRepairSettings = new Dictionary<IMyCubeGrid, bool>();
 
         private DateTime _lastProjectionBuildTime = DateTime.MinValue;
+        private const float DeformationRepairStepMultiplier = 3f;
 
         public const ushort TerminalActionSyncId = 2915;
         public const ushort TerminalStatusSyncId = 2916;
@@ -311,7 +312,8 @@ namespace SafeZoneRepair
                     AllowProjections = true,
                     ProjectionBuildDelay = 1f,
                     ForbiddenComponents = new List<string> { "ExampleComponent1", "ExampleComponent2" },
-                    ProjectionWeldingSpeed = 1f
+                    ProjectionWeldingSpeed = 1f,
+                    DebugMode = false
                 });
             }
             else
@@ -331,7 +333,8 @@ namespace SafeZoneRepair
                         AllowProjections = true,
                         ProjectionBuildDelay = 1f,
                         ForbiddenComponents = new List<string>(),
-                        ProjectionWeldingSpeed = 1f
+                        ProjectionWeldingSpeed = 1f,
+                        DebugMode = false
                     });
                 }
             }
@@ -1007,7 +1010,8 @@ namespace SafeZoneRepair
                     AllowProjections = true,
                     ProjectionBuildDelay = 1f,
                     ForbiddenComponents = new List<string>(),
-                    ProjectionWeldingSpeed = 1f
+                    ProjectionWeldingSpeed = 1f,
+                    DebugMode = false
                 };
                 NormalizeZoneConfig(cfg);
                 zoneConfigs[zone.EntityId] = cfg;
@@ -1075,7 +1079,7 @@ namespace SafeZoneRepair
             }
         }
 
-        private void SendAdminZoneConfigUpdateFromClient(string zoneName, bool enabled, float weldingSpeedValue, float costModifierValue, bool allowProjections, float projectionWeldingSpeedValue)
+        private void SendAdminZoneConfigUpdateFromClient(string zoneName, bool enabled, float weldingSpeedValue, float costModifierValue, bool allowProjections, float projectionWeldingSpeedValue, bool debugMode)
         {
             try
             {
@@ -1092,7 +1096,8 @@ namespace SafeZoneRepair
                     WeldingSpeed = weldingSpeedValue,
                     CostModifier = costModifierValue,
                     AllowProjections = allowProjections,
-                    ProjectionWeldingSpeed = projectionWeldingSpeedValue
+                    ProjectionWeldingSpeed = projectionWeldingSpeedValue,
+                    DebugMode = debugMode
                 };
                 byte[] data = MyAPIGateway.Utilities.SerializeToBinary(msg);
                 MyAPIGateway.Multiplayer.SendMessageToServer(AdminZoneConfigUpdateSyncId, data);
@@ -1469,7 +1474,8 @@ namespace SafeZoneRepair
                         AllowProjections = true,
                         ProjectionBuildDelay = 1f,
                         ForbiddenComponents = new List<string>(),
-                        ProjectionWeldingSpeed = 1f
+                        ProjectionWeldingSpeed = 1f,
+                        DebugMode = false
                     };
                     SaveConfig(new List<SafeZoneConfig>(zoneConfigs.Values));
                 }
@@ -1527,19 +1533,36 @@ namespace SafeZoneRepair
                 }
 
                 bool isProjected = Utils.IsProjected(block);
+                if (isProjected && zoneCfg != null && !zoneCfg.AllowProjections)
+                {
+                    LogZone($"Block {Utils.BlockName(block)} is a projection but zone {zoneCfg.ZoneName} does not allow projection repair, skipping");
+                    continue;
+                }
+
+                if (isProjected)
+                {
+                    IMySlimBlock overlapBlock;
+                    bool sameBlock;
+                    if (HasProjectedOverlap(block, sourceGridEntityId != 0 ? sourceGridEntityId : grid.EntityId, out overlapBlock, out sameBlock))
+                    {
+                        if (sameBlock)
+                        {
+                            LogZone($"Projected block {Utils.BlockName(block)} overlaps matching real block {Utils.BlockName(overlapBlock)}, skipping projected queue entry");
+                            continue;
+                        }
+
+                        LogZone($"Projected block {Utils.BlockName(block)} is blocked by {Utils.BlockName(overlapBlock)}, skipping projected queue entry until next rescan");
+                        continue;
+                    }
+                }
+
                 bool needsRepair = Utils.NeedRepairRobust(block, false) || isProjected;
                 bool alreadyInQueue = blocksInQueue.Contains(block);
 
                 if (needsRepair && !alreadyInQueue)
                 {
-                    if (isProjected && zoneCfg != null && !zoneCfg.AllowProjections)
-                    {
-                        LogZone($"Block {Utils.BlockName(block)} is a projection but zone {zoneCfg.ZoneName} does not allow projection repair, skipping");
-                        continue;
-                    }
-
                     // Если блок ранее был завершён, удаляем его ключ, чтобы разрешить новое уведомление при следующем ремонте
-                    string blockKey = $"{grid.EntityId}:{block.Position}";
+                    string blockKey = $"{block.CubeGrid.EntityId}:{block.Position}";
                     if (_completedBlockKeys.Contains(blockKey))
                         _completedBlockKeys.Remove(blockKey);
 
@@ -1615,16 +1638,51 @@ namespace SafeZoneRepair
 
             if (Utils.IsProjected(block))
             {
-                var def = block.BlockDefinition as MyCubeBlockDefinition;
-                if (def != null)
+                BlockRepairInfo projectedInfo;
+                IMySlimBlock sourceBlock;
+                bool sameBlock;
+                long sourceGridEntityId = blockRepairInfo.TryGetValue(block, out projectedInfo)
+                    ? projectedInfo.SourceGridEntityId
+                    : 0;
+
+                if (HasProjectedOverlap(block, sourceGridEntityId, out sourceBlock, out sameBlock))
                 {
-                    LogZone($"Block is projected, definition: {def.DisplayNameText}");
-                    foreach (var comp in def.Components)
+                    if (sameBlock)
                     {
-                        float compCost = GetComponentCost(comp.Definition.Id, zoneCfg);
-                        LogZone($"Component {comp.Definition.Id.SubtypeName}: cost={compCost}, count={comp.Count}");
-                        if (compCost < 0) return -1;
-                        total += compCost * comp.Count;
+                        var missing = new Dictionary<string, int>();
+                        sourceBlock.GetMissingComponents(missing);
+                        LogZone($"Projected block overlaps matching real block: {Utils.BlockName(sourceBlock)}");
+                        foreach (var kv in missing)
+                        {
+                            MyDefinitionId id;
+                            if (MyDefinitionId.TryParse("MyObjectBuilder_Component/" + kv.Key, out id))
+                            {
+                                float compCost = GetComponentCost(id, zoneCfg);
+                                LogZone($"Overlap component {kv.Key}: cost={compCost}, missing={kv.Value}");
+                                if (compCost < 0) return -1;
+                                total += compCost * kv.Value;
+                            }
+                        }
+                    }
+                    else
+                    {
+                        LogZone($"Projected block is blocked by another real block at source position, excluding from payable cost");
+                        return 0f;
+                    }
+                }
+                else
+                {
+                    var def = block.BlockDefinition as MyCubeBlockDefinition;
+                    if (def != null)
+                    {
+                        LogZone($"Block is projected, definition: {def.DisplayNameText}");
+                        foreach (var comp in def.Components)
+                        {
+                            float compCost = GetComponentCost(comp.Definition.Id, zoneCfg);
+                            LogZone($"Component {comp.Definition.Id.SubtypeName}: cost={compCost}, count={comp.Count}");
+                            if (compCost < 0) return -1;
+                            total += compCost * comp.Count;
+                        }
                     }
                 }
             }
@@ -1834,6 +1892,19 @@ namespace SafeZoneRepair
 
             if (isProjected)
             {
+                IMySlimBlock overlapBlock;
+                bool sameBlock;
+                if (HasProjectedOverlap(block, info.SourceGridEntityId, out overlapBlock, out sameBlock))
+                {
+                    LogRepair(sameBlock
+                        ? $"Projected block {Utils.BlockName(block)} overlaps matching real block {Utils.BlockName(overlapBlock)}, removing projected entry so real block repair can continue"
+                        : $"Projected block {Utils.BlockName(block)} is blocked by {Utils.BlockName(overlapBlock)}, removing projected entry until next rescan");
+                    blocksRepairQueue.Dequeue();
+                    blocksInQueue.Remove(block);
+                    blockRepairInfo.Remove(block);
+                    return;
+                }
+
                 if (projector != null && Utils.CanBuild(block, true))
                 {
                     float delay = GetProjectionBuildDelayForZone(currentZone);
@@ -1842,6 +1913,11 @@ namespace SafeZoneRepair
                         LogRepair($"Projection build delay {delay}s, skipping this tick");
                         return;
                     }
+
+                    float totalCostNow = CalculateTotalRepairCost(block, zoneCfg);
+                    info.TotalCost = (long)Math.Max(0f, totalCostNow);
+                    if (info.InitialCost <= 0)
+                        info.InitialCost = info.TotalCost;
 
                     if (balance < info.TotalCost)
                     {
@@ -1952,7 +2028,7 @@ namespace SafeZoneRepair
 
                 if (pureDeformationOnly)
                 {
-                    float deformationBudget = Math.Max(1f, Math.Max(currentDamageBefore, accumulatedDamageBefore));
+                    float deformationBudget = Math.Max(1f, Math.Max(currentDamageBefore, accumulatedDamageBefore)) * DeformationRepairStepMultiplier;
                     LogRepair($"Calling FixBones for deformation-only block with oldDamage={deformationBudget}");
                     block.FixBones(deformationBudget, 0f);
                     block.UpdateVisual();
@@ -1966,7 +2042,7 @@ namespace SafeZoneRepair
 
                     if (block.HasDeformation && block.MaxIntegrity - block.BuildIntegrity <= 0.01f)
                     {
-                        float deformationBudget = Math.Max(1f, Math.Max(currentDamageBefore, accumulatedDamageBefore));
+                        float deformationBudget = Math.Max(1f, Math.Max(currentDamageBefore, accumulatedDamageBefore)) * DeformationRepairStepMultiplier;
                         LogRepair($"Calling FixBones after weld completion with oldDamage={deformationBudget}");
                         block.FixBones(deformationBudget, 0f);
                         block.UpdateVisual();
@@ -2081,6 +2157,63 @@ namespace SafeZoneRepair
                 return entity as IMyCubeGrid;
 
             return null;
+        }
+
+        private bool TryGetProjectedSourceBlock(IMySlimBlock projectedBlock, long sourceGridEntityId, out IMyCubeGrid sourceGrid, out IMySlimBlock sourceBlock)
+        {
+            sourceGrid = null;
+            sourceBlock = null;
+
+            if (projectedBlock == null || !Utils.IsProjected(projectedBlock))
+                return false;
+
+            sourceGrid = FindGridByEntityId(sourceGridEntityId);
+            if (sourceGrid == null)
+            {
+                var projectedGrid = projectedBlock.CubeGrid as MyCubeGrid;
+                var projector = projectedGrid?.Projector as IMyProjector;
+                sourceGrid = projector?.CubeGrid;
+            }
+
+            if (sourceGrid == null)
+                return false;
+
+            try
+            {
+                Vector3D worldPos = projectedBlock.CubeGrid.GridIntegerToWorld(projectedBlock.Position);
+                Vector3I sourcePos = sourceGrid.WorldToGridInteger(worldPos);
+                sourceBlock = sourceGrid.GetCubeBlock(sourcePos);
+                return sourceBlock != null;
+            }
+            catch (Exception ex)
+            {
+                LogError($"TryGetProjectedSourceBlock error: {ex}");
+                sourceGrid = null;
+                sourceBlock = null;
+                return false;
+            }
+        }
+
+        private bool AreProjectionEquivalentBlocks(IMySlimBlock projectedBlock, IMySlimBlock sourceBlock)
+        {
+            if (projectedBlock == null || sourceBlock == null || projectedBlock.BlockDefinition == null || sourceBlock.BlockDefinition == null)
+                return false;
+
+            return projectedBlock.BlockDefinition.Id.TypeId == sourceBlock.BlockDefinition.Id.TypeId &&
+                   projectedBlock.BlockDefinition.Id.SubtypeId == sourceBlock.BlockDefinition.Id.SubtypeId;
+        }
+
+        private bool HasProjectedOverlap(IMySlimBlock projectedBlock, long sourceGridEntityId, out IMySlimBlock sourceBlock, out bool sameBlock)
+        {
+            sourceBlock = null;
+            sameBlock = false;
+
+            IMyCubeGrid sourceGrid;
+            if (!TryGetProjectedSourceBlock(projectedBlock, sourceGridEntityId, out sourceGrid, out sourceBlock) || sourceBlock == null)
+                return false;
+
+            sameBlock = AreProjectionEquivalentBlocks(projectedBlock, sourceBlock);
+            return true;
         }
 
         private bool GridHasActiveProjector(IMyCubeGrid grid)
@@ -2417,6 +2550,183 @@ namespace SafeZoneRepair
             LogGeneral("Repair queue cleared");
         }
 
+        private string BuildAdminMissingSummary(Dictionary<string, int> missing, int maxItems = 3)
+        {
+            if (missing == null || missing.Count == 0)
+                return "-";
+
+            var sb = new StringBuilder();
+            int added = 0;
+            foreach (var kv in missing)
+            {
+                if (kv.Value <= 0)
+                    continue;
+
+                if (added > 0)
+                    sb.Append(", ");
+
+                sb.Append(kv.Key).Append(":").Append(kv.Value);
+                added++;
+                if (added >= maxItems)
+                    break;
+            }
+
+            return added == 0 ? "-" : sb.ToString();
+        }
+
+        private string BuildAdminDebugText(IMyPlayer player, MySafeZone zone, SafeZoneConfig cfg)
+        {
+            if (player == null)
+                return "Debug context: player unavailable.";
+
+            if (zone == null || cfg == null)
+                return "Debug context: zone unavailable.";
+
+            if (!cfg.DebugMode)
+                return "Debug mode is OFF. Toggle it on and press Apply to capture a fresh snapshot.";
+
+            var sb = new StringBuilder();
+            sb.Append("Debug mode: ON");
+            sb.Append("\nZone entity: ").Append(zone.EntityId);
+
+            var shipController = GetControlledShipController(player);
+            var grid = shipController != null ? shipController.CubeGrid : null;
+            if (grid == null)
+            {
+                sb.Append("\nControlled grid: -");
+                sb.Append("\nTip: sit in a cockpit/remote control and press Load cfg to refresh.");
+                return sb.ToString();
+            }
+
+            bool inZone = IsGridInSafeZone(grid, zone);
+            bool repairEnabled = GetGridRepairSetting(grid);
+            sb.Append("\nGrid: ").Append(grid.DisplayName ?? "-");
+            sb.Append("\nGrid entity: ").Append(grid.EntityId);
+            sb.Append("\nIn zone: ").Append(inZone ? "yes" : "no");
+            sb.Append(" | repair enabled: ").Append(repairEnabled ? "yes" : "no");
+
+            var blocks = new List<IMySlimBlock>();
+            grid.GetBlocks(blocks);
+            int robustCandidates = 0;
+            int partialBlocks = 0;
+            int deformedBlocks = 0;
+            int damagedBlocks = 0;
+            int projectedBlocks = 0;
+            IMySlimBlock samplePartial = null;
+
+            foreach (var block in blocks)
+            {
+                if (block == null)
+                    continue;
+
+                bool projected = Utils.IsProjected(block);
+                if (projected)
+                    projectedBlocks++;
+
+                if (Utils.NeedRepairRobust(block, false))
+                    robustCandidates++;
+
+                bool hasMissingComponents = false;
+                if (block.BuildLevelRatio < 0.999f)
+                {
+                    hasMissingComponents = true;
+                }
+                else
+                {
+                    var missing = new Dictionary<string, int>();
+                    block.GetMissingComponents(missing);
+                    foreach (var kv in missing)
+                    {
+                        if (kv.Value > 0)
+                        {
+                            hasMissingComponents = true;
+                            break;
+                        }
+                    }
+                }
+
+                if (hasMissingComponents)
+                {
+                    partialBlocks++;
+                    if (samplePartial == null && !projected)
+                        samplePartial = block;
+                }
+
+                if (block.HasDeformation)
+                    deformedBlocks++;
+
+                if (block.MaxIntegrity - block.BuildIntegrity > 0.01f)
+                    damagedBlocks++;
+            }
+
+            int queuedForGrid = 0;
+            int projectedQueuedForGrid = 0;
+            foreach (var queued in blocksRepairQueue)
+            {
+                if (queued == null)
+                    continue;
+
+                if (queued.CubeGrid == grid)
+                {
+                    queuedForGrid++;
+                    if (Utils.IsProjected(queued))
+                        projectedQueuedForGrid++;
+                }
+            }
+
+            sb.Append("\nBlocks: ").Append(blocks.Count)
+              .Append(" | candidates: ").Append(robustCandidates)
+              .Append(" | queue on grid: ").Append(queuedForGrid);
+            sb.Append("\nPartial: ").Append(partialBlocks)
+              .Append(" | damaged: ").Append(damagedBlocks)
+              .Append(" | deformed: ").Append(deformedBlocks)
+              .Append(" | projected: ").Append(projectedBlocks)
+              .Append(" | projected queued: ").Append(projectedQueuedForGrid);
+
+            string scanText;
+            DateTime scanUntil;
+            if (_currentScanBlockByPlayer.TryGetValue(player.IdentityId, out scanText) &&
+                _currentScanUntilByPlayer.TryGetValue(player.IdentityId, out scanUntil))
+            {
+                int ttl = Math.Max(0, (int)Math.Ceiling((scanUntil - DateTime.UtcNow).TotalSeconds));
+                sb.Append("\nScan cache: ").Append(string.IsNullOrWhiteSpace(scanText) ? "-" : scanText);
+                sb.Append(" | ttl: ").Append(ttl).Append("s");
+            }
+            else
+            {
+                sb.Append("\nScan cache: -");
+            }
+
+            EstimatedRepairCostCacheEntry cacheEntry;
+            if (_estimatedRepairCostCache.TryGetValue(player.IdentityId, out cacheEntry))
+            {
+                sb.Append("\nEstimate cache: ").Append(cacheEntry.EstimatedRepairCost).Append(" SC");
+                sb.Append(" | grid: ").Append(cacheEntry.GridEntityId);
+                sb.Append(" | zone: ").Append(cacheEntry.ZoneEntityId);
+            }
+            else
+            {
+                sb.Append("\nEstimate cache: -");
+            }
+
+            if (samplePartial != null)
+            {
+                var missing = new Dictionary<string, int>();
+                samplePartial.GetMissingComponents(missing);
+                sb.Append("\nSample partial: ").Append(TruncateHudBlockName(Utils.BlockName(samplePartial), 52));
+                sb.Append("\nBuild ratio: ")
+                  .Append(samplePartial.BuildLevelRatio.ToString("0.000", System.Globalization.CultureInfo.InvariantCulture));
+                sb.Append(" | missing: ").Append(BuildAdminMissingSummary(missing, 3));
+                sb.Append(" | deform: ").Append(samplePartial.HasDeformation ? "yes" : "no");
+            }
+            else
+            {
+                sb.Append("\nSample partial: -");
+            }
+
+            return sb.ToString();
+        }
+
         private void SendAdminZoneConfigStateToPlayer(IMyPlayer player, bool success, string errorText, MySafeZone zone, SafeZoneConfig cfg)
         {
             if (player == null || !MyAPIGateway.Multiplayer.IsServer)
@@ -2433,7 +2743,9 @@ namespace SafeZoneRepair
                 WeldingSpeed = cfg?.WeldingSpeed ?? 0f,
                 CostModifier = cfg?.CostModifier ?? 0f,
                 AllowProjections = cfg?.AllowProjections ?? false,
-                ProjectionWeldingSpeed = cfg?.ProjectionWeldingSpeed ?? 1f
+                ProjectionWeldingSpeed = cfg?.ProjectionWeldingSpeed ?? 1f,
+                DebugMode = cfg != null && cfg.DebugMode,
+                DebugText = BuildAdminDebugText(player, zone, cfg)
             };
 
             byte[] data = MyAPIGateway.Utilities.SerializeToBinary(msg);
@@ -2499,6 +2811,7 @@ namespace SafeZoneRepair
                 cfg.AllowProjections = msg.AllowProjections;
                 cfg.ProjectionWeldingSpeed = (float)Math.Round(Math.Max(0.001f, msg.ProjectionWeldingSpeed), 2);
                 cfg.ProjectionBuildDelay = (float)Math.Round(1f / Math.Max(0.001f, cfg.ProjectionWeldingSpeed), 2);
+                cfg.DebugMode = msg.DebugMode;
                 cfg.ZoneEntityId = zone.EntityId;
                 NormalizeZoneConfig(cfg);
                 zoneConfigs[zone.EntityId] = cfg;

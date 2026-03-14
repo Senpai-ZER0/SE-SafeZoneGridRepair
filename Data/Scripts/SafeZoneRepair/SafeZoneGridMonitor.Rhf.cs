@@ -37,6 +37,9 @@ namespace SafeZoneRepair
         private static Label _adminCostLabel;
         private static Label _adminProjectionSpeedLabel;
         private static Label _adminProjLabel;
+        private static Label _adminDebugModeLabel;
+        private static Label _adminDebugOutputLabel;
+        private static Label _adminDebugTextLabel;
         private static TextField _adminZoneNameField;
         private static TextField _adminWeldingSpeedField;
         private static TextField _adminCostModifierField;
@@ -52,6 +55,7 @@ namespace SafeZoneRepair
         private static BorderedButton _adminCostPlusButton;
         private static BorderedButton _adminProjectionSpeedMinusButton;
         private static BorderedButton _adminProjectionSpeedPlusButton;
+        private static BorderedButton _adminToggleDebugModeButton;
         private static bool _adminPanelFieldsDirty = true;
 
         private static string _stickyLastRepairText;
@@ -141,6 +145,9 @@ namespace SafeZoneRepair
             _adminCostLabel = null;
             _adminProjectionSpeedLabel = null;
             _adminProjLabel = null;
+            _adminDebugModeLabel = null;
+            _adminDebugOutputLabel = null;
+            _adminDebugTextLabel = null;
             _adminZoneNameField = null;
             _adminWeldingSpeedField = null;
             _adminCostModifierField = null;
@@ -156,6 +163,7 @@ namespace SafeZoneRepair
             _adminCostPlusButton = null;
             _adminProjectionSpeedMinusButton = null;
             _adminProjectionSpeedPlusButton = null;
+            _adminToggleDebugModeButton = null;
             _adminPanel = null;
             _adminTitleLabel = null;
             _adminZoneLabel = null;
@@ -166,6 +174,9 @@ namespace SafeZoneRepair
             _adminCostLabel = null;
             _adminProjectionSpeedLabel = null;
             _adminProjLabel = null;
+            _adminDebugModeLabel = null;
+            _adminDebugOutputLabel = null;
+            _adminDebugTextLabel = null;
             _adminZoneNameField = null;
             _adminWeldingSpeedField = null;
             _adminCostModifierField = null;
@@ -306,20 +317,23 @@ namespace SafeZoneRepair
             {
                 ParentAlignment = ParentAlignments.InnerTopLeft,
                 Offset = new Vector2(20f, -20f),
-                Size = new Vector2(520f, 466f),
+                Size = new Vector2(520f, 660f),
                 Color = new Color(8, 14, 20, 225),
                 Visible = false
             };
 
             _adminTitleLabel = CreateAdminLabel(new Vector2(18f, -14f), new Vector2(480f, 24f), 1.0f);
             _adminZoneLabel = CreateAdminLabel(new Vector2(18f, -44f), new Vector2(480f, 20f), 0.82f);
-            _adminStatusLabel = CreateAdminLabel(new Vector2(18f, -68f), new Vector2(480f, 34f), 0.74f, TextBuilderModes.Wrapped);
+            _adminStatusLabel = CreateAdminLabel(new Vector2(18f, -68f), new Vector2(480f, 40f), 0.74f, TextBuilderModes.Wrapped);
             _adminNameLabel = CreateAdminLabel(new Vector2(18f, -118f), new Vector2(140f, 24f), 0.80f);
             _adminEnabledLabel = CreateAdminLabel(new Vector2(18f, -170f), new Vector2(140f, 24f), 0.80f);
             _adminSpeedLabel = CreateAdminLabel(new Vector2(18f, -222f), new Vector2(140f, 24f), 0.80f);
             _adminCostLabel = CreateAdminLabel(new Vector2(18f, -274f), new Vector2(140f, 24f), 0.80f);
             _adminProjectionSpeedLabel = CreateAdminLabel(new Vector2(18f, -326f), new Vector2(140f, 24f), 0.80f);
             _adminProjLabel = CreateAdminLabel(new Vector2(18f, -378f), new Vector2(140f, 24f), 0.80f);
+            _adminDebugModeLabel = CreateAdminLabel(new Vector2(18f, -430f), new Vector2(140f, 24f), 0.80f);
+            _adminDebugOutputLabel = CreateAdminLabel(new Vector2(18f, -530f), new Vector2(200f, 22f), 0.76f);
+            _adminDebugTextLabel = CreateAdminLabel(new Vector2(18f, -556f), new Vector2(472f, 88f), 0.64f, TextBuilderModes.Wrapped);
 
             _adminZoneNameField = CreateAdminTextField(new Vector2(170f, -112f), new Vector2(320f, 34f));
             _adminWeldingSpeedField = CreateAdminTextField(new Vector2(170f, -216f), new Vector2(120f, 34f));
@@ -328,15 +342,16 @@ namespace SafeZoneRepair
 
             _adminToggleEnabledButton = CreateAdminButton(new Vector2(170f, -164f), new Vector2(140f, 36f), "Toggle");
             _adminToggleProjectionsButton = CreateAdminButton(new Vector2(170f, -372f), new Vector2(140f, 36f), "Toggle");
+            _adminToggleDebugModeButton = CreateAdminButton(new Vector2(170f, -424f), new Vector2(140f, 36f), "Toggle");
             _adminSpeedMinusButton = CreateAdminButton(new Vector2(302f, -216f), new Vector2(56f, 34f), "-");
             _adminSpeedPlusButton = CreateAdminButton(new Vector2(366f, -216f), new Vector2(56f, 34f), "+");
             _adminCostMinusButton = CreateAdminButton(new Vector2(302f, -268f), new Vector2(56f, 34f), "-");
             _adminCostPlusButton = CreateAdminButton(new Vector2(366f, -268f), new Vector2(56f, 34f), "+");
             _adminProjectionSpeedMinusButton = CreateAdminButton(new Vector2(302f, -320f), new Vector2(56f, 34f), "-");
             _adminProjectionSpeedPlusButton = CreateAdminButton(new Vector2(366f, -320f), new Vector2(56f, 34f), "+");
-            _adminApplyButton = CreateAdminButton(new Vector2(18f, -418f), new Vector2(140f, 34f), "Apply");
-            _adminLoadConfigButton = CreateAdminButton(new Vector2(176f, -418f), new Vector2(140f, 34f), "Load cfg");
-            _adminCloseButton = CreateAdminButton(new Vector2(350f, -418f), new Vector2(140f, 34f), "Close");
+            _adminApplyButton = CreateAdminButton(new Vector2(18f, -476f), new Vector2(140f, 34f), "Apply");
+            _adminLoadConfigButton = CreateAdminButton(new Vector2(176f, -476f), new Vector2(140f, 34f), "Load cfg");
+            _adminCloseButton = CreateAdminButton(new Vector2(350f, -476f), new Vector2(140f, 34f), "Close");
 
             if (_adminZoneNameField != null)
                 _adminZoneNameField.CharFilterFunc = ch => ch >= 32 && ch < 127;
@@ -351,6 +366,8 @@ namespace SafeZoneRepair
                 _adminToggleEnabledButton.MouseInput.LeftClicked += AdminToggleEnabledClicked;
             if (_adminToggleProjectionsButton != null)
                 _adminToggleProjectionsButton.MouseInput.LeftClicked += AdminToggleProjectionsClicked;
+            if (_adminToggleDebugModeButton != null)
+                _adminToggleDebugModeButton.MouseInput.LeftClicked += AdminToggleDebugModeClicked;
             if (_adminSpeedMinusButton != null)
                 _adminSpeedMinusButton.MouseInput.LeftClicked += AdminSpeedMinusClicked;
             if (_adminSpeedPlusButton != null)
@@ -446,7 +463,7 @@ namespace SafeZoneRepair
                 _adminZoneLabel.Text = string.IsNullOrWhiteSpace(state.ZoneName) ? "Zone: -" : "Zone: " + state.ZoneName;
             if (_adminStatusLabel != null)
                 _adminStatusLabel.Text = state.Success
-                    ? "Edit the zone values below, then press Apply. Load config restores the current server configuration."
+                    ? "Edit the zone values below, then press Apply. Load cfg also refreshes the debug snapshot."
                     : (string.IsNullOrWhiteSpace(state.ErrorText) ? "Admin panel unavailable." : state.ErrorText);
             if (_adminNameLabel != null)
                 _adminNameLabel.Text = "Zone name";
@@ -460,6 +477,10 @@ namespace SafeZoneRepair
                 _adminProjectionSpeedLabel.Text = "Projection speed";
             if (_adminProjLabel != null)
                 _adminProjLabel.Text = "Allow projections";
+            if (_adminDebugModeLabel != null)
+                _adminDebugModeLabel.Text = "Debug mode";
+            if (_adminDebugOutputLabel != null)
+                _adminDebugOutputLabel.Text = "Debug output";
             if (_adminPanelFieldsDirty)
             {
                 if (_adminZoneNameField != null && !_adminZoneNameField.InputOpen)
@@ -476,6 +497,10 @@ namespace SafeZoneRepair
                 _adminToggleEnabledButton.Text = state.Enabled ? "Enabled" : "Disabled";
             if (_adminToggleProjectionsButton != null)
                 _adminToggleProjectionsButton.Text = state.AllowProjections ? "Allowed" : "Blocked";
+            if (_adminToggleDebugModeButton != null)
+                _adminToggleDebugModeButton.Text = state.DebugMode ? "Enabled" : "Disabled";
+            if (_adminDebugTextLabel != null)
+                _adminDebugTextLabel.Text = string.IsNullOrWhiteSpace(state.DebugText) ? (state.DebugMode ? "Debug snapshot is empty." : "Debug mode is OFF.") : state.DebugText;
         }
 
         private bool TryParseAdminFloat(TextField field, out float value)
@@ -539,6 +564,12 @@ namespace SafeZoneRepair
             UpdateAdminPanelState();
         }
 
+        private void AdminToggleDebugModeClicked(object sender, EventArgs e)
+        {
+            _adminZoneState.DebugMode = !_adminZoneState.DebugMode;
+            UpdateAdminPanelState();
+        }
+
         private void AdminSpeedMinusClicked(object sender, EventArgs e)
         {
             AdjustAdminFloatField(_adminWeldingSpeedField, -0.1f);
@@ -588,7 +619,7 @@ namespace SafeZoneRepair
                 cost = NormalizeAdminFloat(cost);
                 projectionSpeed = NormalizeAdminFloat(projectionSpeed);
                 string zoneName = _adminZoneNameField?.Text.ToString() ?? _adminZoneState.ZoneName ?? string.Empty;
-                SendAdminZoneConfigUpdateFromClient(zoneName, _adminZoneState.Enabled, speed, cost, _adminZoneState.AllowProjections, projectionSpeed);
+                SendAdminZoneConfigUpdateFromClient(zoneName, _adminZoneState.Enabled, speed, cost, _adminZoneState.AllowProjections, projectionSpeed, _adminZoneState.DebugMode);
             }
             catch (Exception ex)
             {
@@ -782,7 +813,9 @@ namespace SafeZoneRepair
 			{
 				string lower = (state.StatusText ?? string.Empty).ToLowerInvariant();
 
-				if (lower.Contains("disabled") || lower.Contains("forbidden") || lower.Contains("outside") || lower.Contains("denied"))
+				if (lower.Contains("projection repair unavailable") || lower.Contains("unavailable in this zone"))
+					_statusLabel.Format = new GlyphFormat(new Color(255, 180, 70), TextAlignment.Left, 0.88f);
+				else if (lower.Contains("disabled") || lower.Contains("forbidden") || lower.Contains("outside") || lower.Contains("denied"))
 					_statusLabel.Format = new GlyphFormat(new Color(255, 140, 140), TextAlignment.Left, 0.88f);
 				else if (lower.Contains("enabled") || lower.Contains("entered") || lower.Contains("ready") || lower.Contains("active"))
 					_statusLabel.Format = new GlyphFormat(new Color(120, 220, 120), TextAlignment.Left, 0.88f);

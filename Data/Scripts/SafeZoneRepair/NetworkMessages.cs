@@ -66,6 +66,7 @@ namespace SafeZoneRepair
         [ProtoMember(6)] public float CostModifier;
         [ProtoMember(7)] public bool AllowProjections;
         [ProtoMember(8)] public float ProjectionWeldingSpeed;
+        [ProtoMember(9)] public bool DebugMode;
     }
 
     [ProtoContract]
@@ -81,6 +82,7 @@ namespace SafeZoneRepair
         [ProtoMember(8)] public float CostModifier;
         [ProtoMember(9)] public bool AllowProjections;
         [ProtoMember(10)] public float ProjectionWeldingSpeed;
+        [ProtoMember(11)] public bool DebugMode;
+        [ProtoMember(12)] public string DebugText;
     }
-
 }

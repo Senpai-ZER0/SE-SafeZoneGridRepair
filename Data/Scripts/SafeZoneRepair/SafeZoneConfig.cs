@@ -38,5 +38,8 @@ namespace SafeZoneRepair
 
         [ProtoMember(10)]
         public float ProjectionWeldingSpeed { get; set; } = 1f;
+
+        [ProtoMember(11)]
+        public bool DebugMode { get; set; } = false;
     }
 }
