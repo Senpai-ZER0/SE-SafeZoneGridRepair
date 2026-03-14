@@ -682,7 +682,8 @@ namespace SafeZoneRepair
 			ShowHud();
 
             bool interactiveMenuVisible = GetLocalControlledShipController() != null && IsCockpitInteractiveHudRequested();
-            SetInteractiveCursorEnabled(interactiveMenuVisible);
+            bool shouldEnableInteractiveCursor = interactiveMenuVisible || _adminPanelRequested;
+            SetInteractiveCursorEnabled(shouldEnableInteractiveCursor);
 
 			string zoneName = string.IsNullOrWhiteSpace(state.ZoneName) ? "Repair Zone" : state.ZoneName.Trim();
 			string modeText = state.RepairEnabled ? "Repair mode: enabled" : "Repair mode: disabled";
@@ -746,9 +747,6 @@ namespace SafeZoneRepair
 				else
 					_statusLabel.Format = new GlyphFormat(new Color(210, 225, 240), TextAlignment.Left, 0.88f);
 			}
-
-			if (_currentScanLabel != null)
-                _currentScanLabel.Format = new GlyphFormat(new Color(180, 205, 230), TextAlignment.Left, 0.80f);
 
 			if (_currentRepairLabel != null)
                 _currentRepairLabel.Format = new GlyphFormat(new Color(140, 190, 255), TextAlignment.Left, 0.80f);
