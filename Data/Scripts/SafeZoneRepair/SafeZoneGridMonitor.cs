@@ -107,11 +107,12 @@ namespace SafeZoneRepair
 
         private bool _adminPanelRequested = false;
         private bool _adminComponentsViewRequested = false;
-        private int _adminComponentsPage = 0;
+        private int _adminComponentsScrollOffset = 0;
         private AdminZoneConfigStateMessage _adminZoneState = new AdminZoneConfigStateMessage();
         private readonly HashSet<string> _adminForbiddenComponentsLocal = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
         private readonly List<AdminComponentCatalogEntry> _adminComponentCatalog = new List<AdminComponentCatalogEntry>();
         private const int AdminComponentsPageSize = 8;
+        private const int MouseWheelStepSize = 120;
 
         private sealed class AdminComponentCatalogEntry
         {
@@ -1128,7 +1129,7 @@ namespace SafeZoneRepair
 
                 _adminPanelRequested = true;
                 _adminComponentsViewRequested = false;
-                _adminComponentsPage = 0;
+                _adminComponentsScrollOffset = 0;
                 EnsureAdminComponentCatalogBuilt();
                 SyncAdminForbiddenComponentsFromState();
                 MarkAdminPanelDirty();
@@ -1145,6 +1146,77 @@ namespace SafeZoneRepair
         private void RefreshUiCursorState()
         {
             SetInteractiveCursorEnabled(_cockpitInteractiveRequested || _adminPanelRequested);
+        }
+
+        private int GetAdminComponentsMaxScrollOffset()
+        {
+            if (_adminComponentCatalog == null || _adminComponentCatalog.Count <= AdminComponentsPageSize)
+                return 0;
+
+            return _adminComponentCatalog.Count - AdminComponentsPageSize;
+        }
+
+        private void ClampAdminComponentsScrollOffset()
+        {
+            if (_adminComponentsScrollOffset < 0)
+                _adminComponentsScrollOffset = 0;
+
+            int maxOffset = GetAdminComponentsMaxScrollOffset();
+            if (_adminComponentsScrollOffset > maxOffset)
+                _adminComponentsScrollOffset = maxOffset;
+        }
+
+        private int NormalizeMouseWheelToRowDelta(int wheelDelta)
+        {
+            if (wheelDelta == 0)
+                return 0;
+
+            int stepMagnitude = Math.Abs(wheelDelta) / MouseWheelStepSize;
+            if (stepMagnitude <= 0)
+                stepMagnitude = 1;
+
+            return wheelDelta > 0 ? -stepMagnitude : stepMagnitude;
+        }
+
+        private void ScrollAdminComponentsByRows(int rowDelta)
+        {
+            if (!_adminPanelRequested || !_adminComponentsViewRequested || rowDelta == 0)
+                return;
+
+            EnsureAdminComponentCatalogBuilt();
+            if (_adminComponentCatalog == null || _adminComponentCatalog.Count <= 0)
+                return;
+
+            int oldOffset = _adminComponentsScrollOffset;
+            _adminComponentsScrollOffset += rowDelta;
+            ClampAdminComponentsScrollOffset();
+
+            if (oldOffset != _adminComponentsScrollOffset)
+                UpdateAdminPanelState();
+        }
+
+        private void UpdateAdminComponentsScrollInput()
+        {
+            try
+            {
+                if (!_adminPanelRequested || !_adminComponentsViewRequested)
+                    return;
+
+                if (MyAPIGateway.Gui == null || MyAPIGateway.Input == null)
+                    return;
+
+                if (MyAPIGateway.Gui.ChatEntryVisible)
+                    return;
+
+                int wheelDelta = MyAPIGateway.Input.DeltaMouseScrollWheelValue();
+                int rowDelta = NormalizeMouseWheelToRowDelta(wheelDelta);
+                if (rowDelta != 0)
+                    ScrollAdminComponentsByRows(rowDelta);
+            }
+            catch (Exception ex)
+            {
+                LogError($"UpdateAdminComponentsScrollInput error: {ex}");
+            }
         }
 
         private void RequestAdminZoneConfig(bool reload)
@@ -1376,6 +1448,7 @@ namespace SafeZoneRepair
             if (MyAPIGateway.Utilities != null && !MyAPIGateway.Utilities.IsDedicated)
             {
                 UpdateClientHotkeys();
+                UpdateAdminComponentsScrollInput();
                 UpdateClientHudVisibility();
             }
 

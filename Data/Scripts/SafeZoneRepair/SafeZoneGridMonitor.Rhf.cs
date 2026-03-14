@@ -544,7 +544,8 @@ namespace SafeZoneRepair
             if (_adminComponentCatalog == null || _adminComponentCatalog.Count == 0)
                 return entries;
 
-            int startIndex = Math.Max(0, _adminComponentsPage) * AdminComponentsPageSize;
+            ClampAdminComponentsScrollOffset();
+            int startIndex = Math.Max(0, _adminComponentsScrollOffset);
             if (startIndex >= _adminComponentCatalog.Count)
                 startIndex = 0;
 
@@ -578,20 +579,21 @@ namespace SafeZoneRepair
                 return;
             }
 
+            ClampAdminComponentsScrollOffset();
+            int visibleCount = Math.Min(AdminComponentsPageSize, _adminComponentCatalog.Count);
+            int firstVisibleIndex = Math.Min(_adminComponentsScrollOffset + 1, _adminComponentCatalog.Count);
+            int lastVisibleIndex = Math.Min(_adminComponentsScrollOffset + visibleCount, _adminComponentCatalog.Count);
+            int pageIndex = (_adminComponentsScrollOffset / AdminComponentsPageSize) + 1;
             int totalPages = Math.Max(1, (_adminComponentCatalog.Count + AdminComponentsPageSize - 1) / AdminComponentsPageSize);
-            if (_adminComponentsPage >= totalPages)
-                _adminComponentsPage = totalPages - 1;
-            if (_adminComponentsPage < 0)
-                _adminComponentsPage = 0;
 
             if (_adminTitleLabel != null)
                 _adminTitleLabel.Text = "Components List";
             if (_adminStatusLabel != null)
                 _adminStatusLabel.Text = "Checked = allowed. Unchecked = forbidden. Changes stay local until Apply.";
             if (_adminComponentsLegendLabel != null)
-                _adminComponentsLegendLabel.Text = "Zone forbidden list is saved per safe zone. Prototech components are added to new configs by default.";
+                _adminComponentsLegendLabel.Text = "Wheel: scroll list. Zone forbidden list is saved per safe zone. Prototech components are added to new configs by default.";
             if (_adminComponentsPageLabel != null)
-                _adminComponentsPageLabel.Text = string.Format("Page {0}/{1}  |  Components: {2}  |  Forbidden: {3}", _adminComponentsPage + 1, totalPages, _adminComponentCatalog.Count, _adminForbiddenComponentsLocal.Count);
+                _adminComponentsPageLabel.Text = string.Format("Rows {0}-{1}/{2}  |  Page {3}/{4}  |  Forbidden: {5}", firstVisibleIndex, lastVisibleIndex, _adminComponentCatalog.Count, pageIndex, totalPages, _adminForbiddenComponentsLocal.Count);
             if (_adminComponentsPrevButton != null)
                 _adminComponentsPrevButton.Text = totalPages > 1 ? "Prev" : "Prev";
             if (_adminComponentsNextButton != null)
@@ -796,7 +798,7 @@ namespace SafeZoneRepair
         {
             EnsureAdminComponentCatalogBuilt();
             _adminComponentsViewRequested = true;
-            _adminComponentsPage = 0;
+            _adminComponentsScrollOffset = 0;
             UpdateAdminPanelState();
         }
 
@@ -818,7 +820,7 @@ namespace SafeZoneRepair
             if (rowIndex < 0)
                 return;
 
-            int componentIndex = (_adminComponentsPage * AdminComponentsPageSize) + rowIndex;
+            int componentIndex = _adminComponentsScrollOffset + rowIndex;
             if (componentIndex < 0 || componentIndex >= _adminComponentCatalog.Count)
                 return;
 
@@ -833,17 +835,12 @@ namespace SafeZoneRepair
 
         private void AdminComponentsPrevClicked(object sender, EventArgs e)
         {
-            if (_adminComponentsPage > 0)
-                _adminComponentsPage--;
-            UpdateAdminPanelState();
+            ScrollAdminComponentsByRows(-AdminComponentsPageSize);
         }
 
         private void AdminComponentsNextClicked(object sender, EventArgs e)
         {
-            int totalPages = _adminComponentCatalog.Count > 0 ? (_adminComponentCatalog.Count + AdminComponentsPageSize - 1) / AdminComponentsPageSize : 1;
-            if (_adminComponentsPage + 1 < totalPages)
-                _adminComponentsPage++;
-            UpdateAdminPanelState();
+            ScrollAdminComponentsByRows(AdminComponentsPageSize);
         }
 
         private void AdminComponentsApplyClicked(object sender, EventArgs e)
