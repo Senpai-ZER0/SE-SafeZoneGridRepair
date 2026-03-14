@@ -327,8 +327,8 @@ namespace SafeZoneRepair
             _panel = new BorderBox(RichHudFramework.UI.Client.HudMain.HighDpiRoot)
             {
                 ParentAlignment = ParentAlignments.InnerTopRight,
-                Offset = new Vector2(-240f, -15f),
-                Size = new Vector2(560f, 330f),
+                Offset = new Vector2(-210f, -15f),
+                Size = new Vector2(560f, 336f),
                 Color = new Color(110, 140, 170, 210),
                 Visible = true
             };
@@ -337,24 +337,24 @@ namespace SafeZoneRepair
             {
                 ParentAlignment = ParentAlignments.InnerTopLeft,
                 Offset = new Vector2(0f, 0f),
-                Size = new Vector2(560f, 330f),
+                Size = new Vector2(560f, 336f),
                 Color = new Color(0, 0, 0, 185),
                 Visible = true
             };
 
-            _titleLabel = CreateLabel(new Vector2(24f, -5f), new Vector2(500f, 26f), 1.02f);
-            _zoneLabel = CreateLabel(new Vector2(24f, -27f), new Vector2(500f, 22f), 0.86f);
-            _modeLabel = CreateLabel(new Vector2(24f, -61f), new Vector2(500f, 22f), 0.88f);
-            _statusLabel = CreateLabel(new Vector2(24f, -89f), new Vector2(500f, 22f), 0.88f);
-            _currentScanLabel = CreateLabel(new Vector2(24f, -117f), new Vector2(500f, 22f), 0.80f);
-            _currentRepairLabel = CreateLabel(new Vector2(24f, -145f), new Vector2(500f, 28f), 0.80f, TextBuilderModes.Wrapped);
-            _phaseLabel = CreateLabel(new Vector2(24f, -173f), new Vector2(500f, 22f), 0.78f);
-            _repairLabel = CreateLabel(new Vector2(24f, -199f), new Vector2(500f, 24f), 0.84f);
-            _hintLabel = CreateLabel(new Vector2(24f, -227f), new Vector2(500f, 38f), 0.74f, TextBuilderModes.Wrapped);
+            _titleLabel = CreateLabel(new Vector2(22f, -5f), new Vector2(516f, 26f), 1.03f);
+            _zoneLabel = CreateLabel(new Vector2(22f, -27f), new Vector2(516f, 22f), 0.86f);
+            _modeLabel = CreateLabel(new Vector2(22f, -61f), new Vector2(516f, 22f), 0.88f);
+            _statusLabel = CreateLabel(new Vector2(22f, -89f), new Vector2(516f, 22f), 0.88f);
+            _currentScanLabel = CreateLabel(new Vector2(22f, -117f), new Vector2(516f, 22f), 0.80f);
+            _currentRepairLabel = CreateLabel(new Vector2(22f, -145f), new Vector2(516f, 28f), 0.80f, TextBuilderModes.Wrapped);
+            _phaseLabel = CreateLabel(new Vector2(22f, -173f), new Vector2(516f, 22f), 0.78f);
+            _repairLabel = CreateLabel(new Vector2(22f, -199f), new Vector2(516f, 24f), 0.84f);
+            _hintLabel = CreateLabel(new Vector2(22f, -227f), new Vector2(516f, 42f), 0.76f, TextBuilderModes.Wrapped);
 
-            _toggleRepairButton = CreateMenuButton(new Vector2(24f, -282f), new Vector2(150f, 36f), "Repair OFF");
-            _forceRescanButton = CreateMenuButton(new Vector2(194f, -282f), new Vector2(150f, 36f), "Rescan");
-            _closeMenuButton = CreateMenuButton(new Vector2(364f, -282f), new Vector2(150f, 36f), "Close");
+            _toggleRepairButton = CreateMenuButton(new Vector2(22f, -278f), new Vector2(158f, 40f), "Repair OFF");
+            _forceRescanButton = CreateMenuButton(new Vector2(190f, -278f), new Vector2(158f, 40f), "Rescan");
+            _closeMenuButton = CreateMenuButton(new Vector2(358f, -278f), new Vector2(158f, 40f), "Close");
 
             if (_toggleRepairButton != null)
                 _toggleRepairButton.MouseInput.LeftClicked += ToggleRepairButtonClicked;
@@ -395,7 +395,7 @@ namespace SafeZoneRepair
                 Visible = false
             };
 
-            button.Format = new GlyphFormat(Color.White, TextAlignment.Center, 0.78f);
+            button.Format = new GlyphFormat(Color.White, TextAlignment.Center, 0.80f);
             button.Color = new Color(24, 40, 54, 230);
             button.HighlightColor = new Color(70, 110, 145, 230);
             button.FocusColor = new Color(120, 180, 210, 230);
@@ -414,67 +414,67 @@ namespace SafeZoneRepair
             {
                 ParentAlignment = ParentAlignments.InnerTopLeft,
                 Offset = new Vector2(20f, -20f),
-                Size = new Vector2(820f, 700f),
+                Size = new Vector2(890f, 720f),
                 Color = new Color(8, 14, 20, 225),
                 Visible = false
             };
 
-            _adminTitleLabel = CreateAdminLabel(new Vector2(18f, -14f), new Vector2(780f, 24f), 1.0f);
-            _adminZonesListLabel = CreateAdminLabel(new Vector2(18f, -48f), new Vector2(220f, 22f), 0.82f);
-            _adminZoneLabel = CreateAdminLabel(new Vector2(280f, -48f), new Vector2(500f, 20f), 0.82f);
-            _adminStatusLabel = CreateAdminLabel(new Vector2(280f, -74f), new Vector2(500f, 40f), 0.74f, TextBuilderModes.Wrapped);
-            _adminNameLabel = CreateAdminLabel(new Vector2(280f, -132f), new Vector2(150f, 24f), 0.78f);
-            _adminEnabledLabel = CreateAdminLabel(new Vector2(280f, -184f), new Vector2(150f, 24f), 0.78f);
-            _adminSpeedLabel = CreateAdminLabel(new Vector2(280f, -236f), new Vector2(150f, 24f), 0.78f);
-            _adminCostLabel = CreateAdminLabel(new Vector2(280f, -288f), new Vector2(150f, 24f), 0.78f);
-            _adminProjectionSpeedLabel = CreateAdminLabel(new Vector2(280f, -340f), new Vector2(150f, 24f), 0.78f);
-            _adminProjLabel = CreateAdminLabel(new Vector2(280f, -392f), new Vector2(150f, 24f), 0.78f);
-            _adminDebugModeLabel = CreateAdminLabel(new Vector2(280f, -444f), new Vector2(150f, 24f), 0.78f);
+            _adminTitleLabel = CreateAdminLabel(new Vector2(18f, -14f), new Vector2(850f, 24f), 1.0f);
+            _adminZonesListLabel = CreateAdminLabel(new Vector2(18f, -48f), new Vector2(236f, 22f), 0.82f);
+            _adminZoneLabel = CreateAdminLabel(new Vector2(280f, -48f), new Vector2(570f, 20f), 0.82f);
+            _adminStatusLabel = CreateAdminLabel(new Vector2(280f, -74f), new Vector2(570f, 40f), 0.74f, TextBuilderModes.Wrapped);
+            _adminNameLabel = CreateAdminLabel(new Vector2(280f, -132f), new Vector2(150f, 24f), 0.80f);
+            _adminEnabledLabel = CreateAdminLabel(new Vector2(280f, -184f), new Vector2(150f, 24f), 0.80f);
+            _adminSpeedLabel = CreateAdminLabel(new Vector2(280f, -236f), new Vector2(150f, 24f), 0.80f);
+            _adminCostLabel = CreateAdminLabel(new Vector2(280f, -288f), new Vector2(150f, 24f), 0.80f);
+            _adminProjectionSpeedLabel = CreateAdminLabel(new Vector2(280f, -340f), new Vector2(150f, 24f), 0.80f);
+            _adminProjLabel = CreateAdminLabel(new Vector2(280f, -392f), new Vector2(150f, 24f), 0.80f);
+            _adminDebugModeLabel = CreateAdminLabel(new Vector2(280f, -444f), new Vector2(150f, 24f), 0.80f);
             _adminDebugOutputLabel = CreateAdminLabel(new Vector2(280f, -548f), new Vector2(200f, 22f), 0.76f);
             _adminDebugTextLabel = CreateAdminLabel(new Vector2(280f, -574f), new Vector2(500f, 104f), 0.64f, TextBuilderModes.Wrapped);
 
-            _adminZoneNameField = CreateAdminTextField(new Vector2(440f, -126f), new Vector2(340f, 34f));
-            _adminWeldingSpeedField = CreateAdminTextField(new Vector2(440f, -230f), new Vector2(120f, 34f));
-            _adminCostModifierField = CreateAdminTextField(new Vector2(440f, -282f), new Vector2(120f, 34f));
-            _adminProjectionSpeedField = CreateAdminTextField(new Vector2(440f, -334f), new Vector2(120f, 34f));
+            _adminZoneNameField = CreateAdminTextField(new Vector2(440f, -126f), new Vector2(390f, 36f));
+            _adminWeldingSpeedField = CreateAdminTextField(new Vector2(440f, -230f), new Vector2(124f, 36f));
+            _adminCostModifierField = CreateAdminTextField(new Vector2(440f, -282f), new Vector2(124f, 36f));
+            _adminProjectionSpeedField = CreateAdminTextField(new Vector2(440f, -334f), new Vector2(124f, 36f));
 
-            _adminToggleEnabledButton = CreateAdminButton(new Vector2(440f, -178f), new Vector2(140f, 36f), "Toggle");
-            _adminToggleProjectionsButton = CreateAdminButton(new Vector2(440f, -386f), new Vector2(140f, 36f), "Toggle");
-            _adminToggleDebugModeButton = CreateAdminButton(new Vector2(440f, -438f), new Vector2(140f, 36f), "Toggle");
-            _adminSpeedMinusButton = CreateAdminButton(new Vector2(572f, -230f), new Vector2(56f, 34f), "-");
-            _adminSpeedPlusButton = CreateAdminButton(new Vector2(636f, -230f), new Vector2(56f, 34f), "+");
-            _adminCostMinusButton = CreateAdminButton(new Vector2(572f, -282f), new Vector2(56f, 34f), "-");
-            _adminCostPlusButton = CreateAdminButton(new Vector2(636f, -282f), new Vector2(56f, 34f), "+");
-            _adminProjectionSpeedMinusButton = CreateAdminButton(new Vector2(572f, -334f), new Vector2(56f, 34f), "-");
-            _adminProjectionSpeedPlusButton = CreateAdminButton(new Vector2(636f, -334f), new Vector2(56f, 34f), "+");
-            _adminApplyButton = CreateAdminButton(new Vector2(280f, -494f), new Vector2(92f, 34f), "Apply");
-            _adminLoadConfigButton = CreateAdminButton(new Vector2(380f, -494f), new Vector2(92f, 34f), "Load");
-            _adminComponentsButton = CreateAdminButton(new Vector2(480f, -494f), new Vector2(92f, 34f), "Comps");
-            _adminOpenPriceModsButton = CreateAdminButton(new Vector2(580f, -494f), new Vector2(92f, 34f), "Prices");
-            _adminCloseButton = CreateAdminButton(new Vector2(680f, -494f), new Vector2(92f, 34f), "Close");
+            _adminToggleEnabledButton = CreateAdminButton(new Vector2(440f, -178f), new Vector2(156f, 40f), "Toggle");
+            _adminToggleProjectionsButton = CreateAdminButton(new Vector2(440f, -386f), new Vector2(156f, 40f), "Toggle");
+            _adminToggleDebugModeButton = CreateAdminButton(new Vector2(440f, -438f), new Vector2(156f, 40f), "Toggle");
+            _adminSpeedMinusButton = CreateAdminButton(new Vector2(610f, -230f), new Vector2(64f, 36f), "-");
+            _adminSpeedPlusButton = CreateAdminButton(new Vector2(682f, -230f), new Vector2(64f, 36f), "+");
+            _adminCostMinusButton = CreateAdminButton(new Vector2(610f, -282f), new Vector2(64f, 36f), "-");
+            _adminCostPlusButton = CreateAdminButton(new Vector2(682f, -282f), new Vector2(64f, 36f), "+");
+            _adminProjectionSpeedMinusButton = CreateAdminButton(new Vector2(610f, -334f), new Vector2(64f, 36f), "-");
+            _adminProjectionSpeedPlusButton = CreateAdminButton(new Vector2(682f, -334f), new Vector2(64f, 36f), "+");
+            _adminApplyButton = CreateAdminButton(new Vector2(280f, -494f), new Vector2(118f, 40f), "Apply");
+            _adminLoadConfigButton = CreateAdminButton(new Vector2(412f, -494f), new Vector2(118f, 40f), "Load");
+            _adminComponentsButton = CreateAdminButton(new Vector2(544f, -494f), new Vector2(118f, 40f), "Comps");
+            _adminOpenPriceModsButton = CreateAdminButton(new Vector2(674f, -494f), new Vector2(118f, 40f), "Prices");
+            _adminCloseButton = CreateAdminButton(new Vector2(778f, -494f), new Vector2(94f, 40f), "Close");
 
-            _adminComponentsLegendLabel = CreateAdminLabel(new Vector2(280f, -132f), new Vector2(500f, 38f), 0.72f, TextBuilderModes.Wrapped);
-            _adminComponentsPageLabel = CreateAdminLabel(new Vector2(280f, -500f), new Vector2(500f, 22f), 0.74f);
+            _adminComponentsLegendLabel = CreateAdminLabel(new Vector2(280f, -132f), new Vector2(560f, 42f), 0.74f, TextBuilderModes.Wrapped);
+            _adminComponentsPageLabel = CreateAdminLabel(new Vector2(280f, -500f), new Vector2(560f, 22f), 0.74f);
             _adminComponentRowLabels = new Label[AdminComponentsPageSize];
             _adminComponentRowButtons = new BorderedButton[AdminComponentsPageSize];
             for (int i = 0; i < AdminComponentsPageSize; i++)
             {
                 float rowY = -182f - (i * 36f);
-                _adminComponentRowLabels[i] = CreateAdminLabel(new Vector2(280f, rowY), new Vector2(388f, 30f), 0.70f, TextBuilderModes.Wrapped);
-                _adminComponentRowButtons[i] = CreateAdminButton(new Vector2(676f, rowY - 2f), new Vector2(104f, 30f), "Allowed");
+                _adminComponentRowLabels[i] = CreateAdminLabel(new Vector2(280f, rowY), new Vector2(404f, 30f), 0.72f, TextBuilderModes.Wrapped);
+                _adminComponentRowButtons[i] = CreateAdminButton(new Vector2(696f, rowY - 2f), new Vector2(144f, 32f), "Allowed");
             }
-            _adminComponentsPrevButton = CreateAdminButton(new Vector2(280f, -540f), new Vector2(88f, 34f), "Prev");
-            _adminComponentsNextButton = CreateAdminButton(new Vector2(378f, -540f), new Vector2(88f, 34f), "Next");
-            _adminComponentsApplyButton = CreateAdminButton(new Vector2(584f, -540f), new Vector2(88f, 34f), "Apply");
-            _adminComponentsBackButton = CreateAdminButton(new Vector2(680f, -540f), new Vector2(100f, 34f), "Back");
+            _adminComponentsPrevButton = CreateAdminButton(new Vector2(280f, -540f), new Vector2(104f, 40f), "Prev");
+            _adminComponentsNextButton = CreateAdminButton(new Vector2(396f, -540f), new Vector2(104f, 40f), "Next");
+            _adminComponentsApplyButton = CreateAdminButton(new Vector2(618f, -540f), new Vector2(108f, 40f), "Apply");
+            _adminComponentsBackButton = CreateAdminButton(new Vector2(738f, -540f), new Vector2(102f, 40f), "Back");
 
-            _adminZonePrevButton = CreateAdminButton(new Vector2(18f, -298f), new Vector2(92f, 32f), "Prev");
-            _adminZoneNextButton = CreateAdminButton(new Vector2(146f, -298f), new Vector2(92f, 32f), "Next");
+            _adminZonePrevButton = CreateAdminButton(new Vector2(18f, -298f), new Vector2(108f, 36f), "Prev");
+            _adminZoneNextButton = CreateAdminButton(new Vector2(146f, -298f), new Vector2(108f, 36f), "Next");
             _adminZoneSelectButtons = new BorderedButton[AdminZoneListPageSize];
             for (int i = 0; i < AdminZoneListPageSize; i++)
             {
                 float y = -84f - (i * 42f);
-                _adminZoneSelectButtons[i] = CreateAdminButton(new Vector2(18f, y), new Vector2(220f, 34f), "-");
+                _adminZoneSelectButtons[i] = CreateAdminButton(new Vector2(18f, y), new Vector2(236f, 38f), "-");
                 if (_adminZoneSelectButtons[i] != null)
                     _adminZoneSelectButtons[i].Format = new GlyphFormat(Color.White, TextAlignment.Left, 0.68f);
             }
@@ -590,7 +590,7 @@ namespace SafeZoneRepair
                 Text = text,
                 Visible = true
             };
-            button.Format = new GlyphFormat(Color.White, TextAlignment.Center, 0.72f);
+            button.Format = new GlyphFormat(Color.White, TextAlignment.Center, 0.78f);
             button.Color = new Color(24, 40, 54, 230);
             button.HighlightColor = new Color(70, 110, 145, 230);
             button.FocusColor = new Color(120, 180, 210, 230);
@@ -757,7 +757,7 @@ namespace SafeZoneRepair
                 Text = text,
                 Visible = true
             };
-            button.Format = new GlyphFormat(Color.White, TextAlignment.Center, 0.74f);
+            button.Format = new GlyphFormat(Color.White, TextAlignment.Center, 0.76f);
             button.Color = new Color(24, 40, 54, 230);
             button.HighlightColor = new Color(70, 110, 145, 230);
             button.FocusColor = new Color(120, 180, 210, 230);
@@ -777,14 +777,14 @@ namespace SafeZoneRepair
             {
                 ParentAlignment = ParentAlignments.InnerTopLeft,
                 Offset = new Vector2(40f, -30f),
-                Size = new Vector2(900f, 640f),
+                Size = new Vector2(960f, 664f),
                 Color = new Color(8, 14, 20, 225),
                 Visible = false
             };
 
-            _adminPriceModsTitleLabel = CreatePriceModsLabel(new Vector2(18f, -14f), new Vector2(860f, 24f), 1.0f);
-            _adminPriceModsZoneLabel = CreatePriceModsLabel(new Vector2(18f, -46f), new Vector2(860f, 22f), 0.82f);
-            _adminPriceModsSummaryLabel = CreatePriceModsLabel(new Vector2(18f, -74f), new Vector2(860f, 22f), 0.74f);
+            _adminPriceModsTitleLabel = CreatePriceModsLabel(new Vector2(18f, -14f), new Vector2(920f, 24f), 1.0f);
+            _adminPriceModsZoneLabel = CreatePriceModsLabel(new Vector2(18f, -46f), new Vector2(920f, 22f), 0.82f);
+            _adminPriceModsSummaryLabel = CreatePriceModsLabel(new Vector2(18f, -74f), new Vector2(920f, 22f), 0.74f);
 
             _adminPriceModNameLabels = new Label[AdminPriceModsPageSize];
             _adminPriceModValueLabels = new Label[AdminPriceModsPageSize];
@@ -794,11 +794,11 @@ namespace SafeZoneRepair
             for (int i = 0; i < AdminPriceModsPageSize; i++)
             {
                 float y = -118f - (i * 58f);
-                _adminPriceModNameLabels[i] = CreatePriceModsLabel(new Vector2(18f, y), new Vector2(430f, 42f), 0.74f, TextBuilderModes.Wrapped);
-                _adminPriceModValueLabels[i] = CreatePriceModsLabel(new Vector2(452f, y + 6f), new Vector2(74f, 24f), 0.76f);
-                _adminPriceModMinusButtons[i] = CreatePriceModsButton(new Vector2(530f, y), new Vector2(76f, 34f), "-10");
-                _adminPriceModPlusButtons[i] = CreatePriceModsButton(new Vector2(614f, y), new Vector2(76f, 34f), "+10");
-                _adminPriceModResetButtons[i] = CreatePriceModsButton(new Vector2(698f, y), new Vector2(112f, 34f), "Reset");
+                _adminPriceModNameLabels[i] = CreatePriceModsLabel(new Vector2(18f, y), new Vector2(446f, 42f), 0.76f, TextBuilderModes.Wrapped);
+                _adminPriceModValueLabels[i] = CreatePriceModsLabel(new Vector2(472f, y + 6f), new Vector2(90f, 24f), 0.78f);
+                _adminPriceModMinusButtons[i] = CreatePriceModsButton(new Vector2(570f, y), new Vector2(92f, 36f), "-10%");
+                _adminPriceModPlusButtons[i] = CreatePriceModsButton(new Vector2(670f, y), new Vector2(92f, 36f), "+10%");
+                _adminPriceModResetButtons[i] = CreatePriceModsButton(new Vector2(770f, y), new Vector2(120f, 36f), "Reset");
 
                 int slot = i;
                 if (_adminPriceModMinusButtons[i] != null)
@@ -809,11 +809,11 @@ namespace SafeZoneRepair
                     _adminPriceModResetButtons[i].MouseInput.LeftClicked += (sender, args) => AdminPriceModResetClicked(slot);
             }
 
-            _adminPriceModsPrevButton = CreatePriceModsButton(new Vector2(18f, -560f), new Vector2(96f, 34f), "Prev");
-            _adminPriceModsNextButton = CreatePriceModsButton(new Vector2(126f, -560f), new Vector2(96f, 34f), "Next");
-            _adminPriceModsResetAllButton = CreatePriceModsButton(new Vector2(484f, -560f), new Vector2(116f, 34f), "Reset all");
-            _adminPriceModsApplyButton = CreatePriceModsButton(new Vector2(612f, -560f), new Vector2(96f, 34f), "Apply");
-            _adminPriceModsBackButton = CreatePriceModsButton(new Vector2(720f, -560f), new Vector2(96f, 34f), "Back");
+            _adminPriceModsPrevButton = CreatePriceModsButton(new Vector2(18f, -568f), new Vector2(108f, 40f), "Prev");
+            _adminPriceModsNextButton = CreatePriceModsButton(new Vector2(136f, -568f), new Vector2(108f, 40f), "Next");
+            _adminPriceModsResetAllButton = CreatePriceModsButton(new Vector2(558f, -568f), new Vector2(136f, 40f), "Reset all");
+            _adminPriceModsApplyButton = CreatePriceModsButton(new Vector2(708f, -568f), new Vector2(108f, 40f), "Apply");
+            _adminPriceModsBackButton = CreatePriceModsButton(new Vector2(828f, -568f), new Vector2(108f, 40f), "Back");
 
             if (_adminPriceModsPrevButton != null)
                 _adminPriceModsPrevButton.MouseInput.LeftClicked += AdminPriceModsPrevClicked;
@@ -842,11 +842,11 @@ namespace SafeZoneRepair
             EnsureAdminComponentCatalogBuilt();
 
             if (_adminPriceModsTitleLabel != null)
-                _adminPriceModsTitleLabel.Text = "ZERO's Prices";
+                _adminPriceModsTitleLabel.Text = "ZERO's Price Modifiers";
             if (_adminPriceModsZoneLabel != null)
             {
                 string zoneName = _adminZoneState != null && !string.IsNullOrWhiteSpace(_adminZoneState.ZoneName) ? _adminZoneState.ZoneName : "-";
-                _adminPriceModsZoneLabel.Text = "Selected zone: " + zoneName + " | Base = 100%";
+                _adminPriceModsZoneLabel.Text = "Selected zone: " + zoneName + " | Default = 100%";
             }
 
             int totalPages = Math.Max(1, (_adminComponentCatalog.Count + AdminPriceModsPageSize - 1) / AdminPriceModsPageSize);
@@ -858,7 +858,7 @@ namespace SafeZoneRepair
             int start = _adminComponentCatalog.Count == 0 ? 0 : (_adminPriceModsPage * AdminPriceModsPageSize) + 1;
             int end = Math.Min(_adminComponentCatalog.Count, (_adminPriceModsPage + 1) * AdminPriceModsPageSize);
             if (_adminPriceModsSummaryLabel != null)
-                _adminPriceModsSummaryLabel.Text = string.Format("Rows {0}-{1}/{2} | Modified: {3}", start, end, _adminComponentCatalog.Count, CountModifiedAdminComponentPriceModifiers());
+                _adminPriceModsSummaryLabel.Text = string.Format("Components {0}-{1}/{2} | Modified: {3}", start, end, _adminComponentCatalog.Count, CountModifiedAdminComponentPriceModifiers());
 
             for (int i = 0; i < AdminPriceModsPageSize; i++)
             {
@@ -1120,11 +1120,11 @@ namespace SafeZoneRepair
             int totalPages = Math.Max(1, (_adminComponentCatalog.Count + AdminComponentsPageSize - 1) / AdminComponentsPageSize);
 
             if (_adminTitleLabel != null)
-                _adminTitleLabel.Text = "ZERO's Components";
+                _adminTitleLabel.Text = "ZERO's Components List";
             if (_adminStatusLabel != null)
-                _adminStatusLabel.Text = "Allowed/Forbidden is saved only after Apply.";
+                _adminStatusLabel.Text = "Checked = allowed. Unchecked = forbidden. Changes stay local until Apply.";
             if (_adminComponentsLegendLabel != null)
-                _adminComponentsLegendLabel.Text = "Wheel scrolls. Apply saves per-zone access. New zones block Prototech by default.";
+                _adminComponentsLegendLabel.Text = "Wheel: scroll list. Zone forbidden list is saved per safe zone. Prototech components are added to new configs by default.";
             if (_adminComponentsPageLabel != null)
                 _adminComponentsPageLabel.Text = string.Format("Rows {0}-{1}/{2} | Page {3}/{4} | Forbidden: {5}", firstVisibleIndex, lastVisibleIndex, _adminComponentCatalog.Count, pageIndex, totalPages, _adminForbiddenComponentsLocal.Count);
 
@@ -1344,22 +1344,22 @@ namespace SafeZoneRepair
             }
             if (_adminStatusLabel != null)
                 _adminStatusLabel.Text = state.Success
-                    ? "Select a zone on the left. Apply saves. Comps = access list. Prices = cost multipliers."
+                    ? "Select any zone on the left to edit it remotely. Apply saves the selected zone. Components opens the allowed/forbidden list."
                     : (string.IsNullOrWhiteSpace(state.ErrorText) ? "Admin panel unavailable." : state.ErrorText);
             if (_adminNameLabel != null)
-                _adminNameLabel.Text = "Name";
+                _adminNameLabel.Text = "Zone name";
             if (_adminEnabledLabel != null)
-                _adminEnabledLabel.Text = "Repair";
+                _adminEnabledLabel.Text = "Repair enabled";
             if (_adminSpeedLabel != null)
-                _adminSpeedLabel.Text = "Weld speed";
+                _adminSpeedLabel.Text = "Welding speed";
             if (_adminCostLabel != null)
-                _adminCostLabel.Text = "Cost mod";
+                _adminCostLabel.Text = "Cost modifier";
             if (_adminProjectionSpeedLabel != null)
-                _adminProjectionSpeedLabel.Text = "Proj. speed";
+                _adminProjectionSpeedLabel.Text = "Projection speed";
             if (_adminProjLabel != null)
-                _adminProjLabel.Text = "Projections";
+                _adminProjLabel.Text = "Allow projections";
             if (_adminDebugModeLabel != null)
-                _adminDebugModeLabel.Text = "Debug";
+                _adminDebugModeLabel.Text = "Debug mode";
             if (_adminDebugOutputLabel != null)
                 _adminDebugOutputLabel.Text = "Debug output";
 
@@ -1687,7 +1687,7 @@ namespace SafeZoneRepair
             if (GetLocalControlledShipController() != null && !IsCockpitHudVisible())
             {
                 _cockpitInteractiveRequested = false;
-                SetInteractiveCursorEnabled(false);
+                RefreshUiCursorState();
                 HideHud();
                 return;
             }
@@ -1695,7 +1695,7 @@ namespace SafeZoneRepair
 			ShowHud();
 
             bool interactiveMenuVisible = GetLocalControlledShipController() != null && IsCockpitInteractiveHudRequested();
-            SetInteractiveCursorEnabled(interactiveMenuVisible);
+            RefreshUiCursorState();
 
 			string zoneName = string.IsNullOrWhiteSpace(state.ZoneName) ? "Repair Zone" : state.ZoneName.Trim();
 			string modeText = state.RepairEnabled ? "Repair mode: ON" : "Repair mode: OFF";
@@ -1721,11 +1721,11 @@ namespace SafeZoneRepair
             string phaseText = string.IsNullOrWhiteSpace(state.RepairPhaseText) ? "Repair phase: idle" : state.RepairPhaseText.Trim();
             string costText = string.Format("Estimated cost: {0} SC", estimatedRepairCost);
             if (interactiveMenuVisible)
-                repairText = string.Format("{0}\nMenu open  |  Ctrl+J close  |  Ctrl+R repair  |  Ctrl+N hide HUD", repairText);
+                repairText = string.Format("{0}\nMenu open | Ctrl+J close | Ctrl+R repair | Ctrl+N hide HUD", repairText);
             else if (GetLocalControlledShipController() != null)
-                repairText = string.Format("{0}\nCtrl+J menu  |  Ctrl+R repair  |  Ctrl+N hide HUD", repairText);
+                repairText = string.Format("{0}\nCtrl+J menu | Ctrl+R repair | Ctrl+N hide HUD", repairText);
             else
-                repairText = string.Format("{0}\nCtrl+J info  |  Ctrl+N hide HUD", repairText);
+                repairText = string.Format("{0}\nCtrl+J info | Ctrl+N hide HUD", repairText);
 
 			SetInteractiveMenuVisible(interactiveMenuVisible, state.RepairEnabled);
 
@@ -1774,8 +1774,7 @@ namespace SafeZoneRepair
 
         private void HideHud()
         {
-            if (!_adminPanelRequested)
-                SetInteractiveCursorEnabled(false);
+            RefreshUiCursorState();
 
             if (_panel != null)
                 _panel.Visible = false;
