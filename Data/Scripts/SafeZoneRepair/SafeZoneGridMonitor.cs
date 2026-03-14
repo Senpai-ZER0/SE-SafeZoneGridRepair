@@ -106,19 +106,7 @@ namespace SafeZoneRepair
         private static TextPage _rhfOverviewPage;
 
         private bool _adminPanelRequested = false;
-        private bool _adminComponentsViewRequested = false;
-        private int _adminComponentsScrollOffset = 0;
         private AdminZoneConfigStateMessage _adminZoneState = new AdminZoneConfigStateMessage();
-        private readonly HashSet<string> _adminForbiddenComponentsLocal = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
-        private readonly List<AdminComponentCatalogEntry> _adminComponentCatalog = new List<AdminComponentCatalogEntry>();
-        private const int AdminComponentsPageSize = 8;
-        private const int MouseWheelStepSize = 120;
-
-        private sealed class AdminComponentCatalogEntry
-        {
-            public string SubtypeId;
-            public string DisplayName;
-        }
 
         private sealed class EstimatedRepairCostCacheEntry
         {
@@ -281,111 +269,6 @@ namespace SafeZoneRepair
             return "Repair Zone";
         }
 
-        private static List<string> CreateDefaultForbiddenComponents()
-        {
-            return new List<string>
-            {
-                "PrototechCapacitor",
-                "PrototechCircuitry",
-                "PrototechCoolingUnit",
-                "PrototechFrame",
-                "PrototechMachinery",
-                "PrototechPanel",
-                "PrototechPropulsionUnit"
-            };
-        }
-
-        private static List<string> NormalizeForbiddenComponentList(IEnumerable<string> components, bool includeBaseDefaults)
-        {
-            var set = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
-
-            if (components != null)
-            {
-                foreach (var component in components)
-                {
-                    if (string.IsNullOrWhiteSpace(component))
-                        continue;
-
-                    set.Add(component.Trim());
-                }
-            }
-
-            if (includeBaseDefaults)
-            {
-                foreach (var component in CreateDefaultForbiddenComponents())
-                    set.Add(component);
-            }
-
-            var list = new List<string>(set);
-            list.Sort(StringComparer.OrdinalIgnoreCase);
-            return list;
-        }
-
-        private SafeZoneConfig CreateDefaultZoneConfig(MySafeZone zone)
-        {
-            string zoneName = GetSafeZoneDefaultName(zone);
-            return new SafeZoneConfig
-            {
-                ZoneEntityId = zone?.EntityId ?? 0,
-                ZoneName = zoneName,
-                DisplayName = zoneName,
-                WeldingSpeed = weldingSpeed,
-                CostModifier = costModifier,
-                Enabled = true,
-                AllowProjections = true,
-                ProjectionBuildDelay = 1f,
-                ForbiddenComponents = NormalizeForbiddenComponentList(null, true)
-            };
-        }
-
-        private void EnsureAdminComponentCatalogBuilt()
-        {
-            if (_adminComponentCatalog.Count > 0 || MyDefinitionManager.Static == null)
-                return;
-
-            var seen = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
-            foreach (var definition in MyDefinitionManager.Static.GetAllDefinitions())
-            {
-                var componentDefinition = definition as MyComponentDefinition;
-                if (componentDefinition == null)
-                    continue;
-
-                string subtypeId = componentDefinition.Id.SubtypeName;
-                if (string.IsNullOrWhiteSpace(subtypeId) || !seen.Add(subtypeId))
-                    continue;
-
-                string displayName = componentDefinition.DisplayNameText;
-                if (string.IsNullOrWhiteSpace(displayName))
-                    displayName = subtypeId;
-
-                _adminComponentCatalog.Add(new AdminComponentCatalogEntry
-                {
-                    SubtypeId = subtypeId,
-                    DisplayName = displayName.Trim()
-                });
-            }
-
-            _adminComponentCatalog.Sort((a, b) => string.Compare(a.DisplayName, b.DisplayName, StringComparison.OrdinalIgnoreCase));
-        }
-
-        private void SyncAdminForbiddenComponentsFromState()
-        {
-            _adminForbiddenComponentsLocal.Clear();
-            if (_adminZoneState?.ForbiddenComponents == null)
-                return;
-
-            foreach (var component in _adminZoneState.ForbiddenComponents)
-            {
-                if (!string.IsNullOrWhiteSpace(component))
-                    _adminForbiddenComponentsLocal.Add(component.Trim());
-            }
-        }
-
-        private List<string> GetAdminForbiddenComponentsSnapshot()
-        {
-            return NormalizeForbiddenComponentList(_adminForbiddenComponentsLocal, false);
-        }
-
         private static void NormalizeZoneConfig(SafeZoneConfig cfg)
         {
             if (cfg == null)
@@ -397,7 +280,19 @@ namespace SafeZoneRepair
             if (string.IsNullOrWhiteSpace(cfg.DisplayName))
                 cfg.DisplayName = cfg.ZoneName;
 
-            cfg.ForbiddenComponents = NormalizeForbiddenComponentList(cfg.ForbiddenComponents, false);
+            if (cfg.ForbiddenComponents == null)
+                cfg.ForbiddenComponents = new List<string>();
+
+            if (cfg.ProjectionWeldingSpeed < 0.001f)
+            {
+                if (cfg.ProjectionBuildDelay >= 0.001f)
+                    cfg.ProjectionWeldingSpeed = (float)Math.Round(1f / Math.Max(0.001f, cfg.ProjectionBuildDelay), 2);
+                else
+                    cfg.ProjectionWeldingSpeed = 1f;
+            }
+
+            if (cfg.ProjectionBuildDelay < 0.001f)
+                cfg.ProjectionBuildDelay = (float)Math.Round(1f / Math.Max(0.001f, cfg.ProjectionWeldingSpeed), 2);
         }
 
         private void SaveDefaultConfig()
@@ -415,7 +310,8 @@ namespace SafeZoneRepair
                     Enabled = true,
                     AllowProjections = true,
                     ProjectionBuildDelay = 1f,
-                    ForbiddenComponents = NormalizeForbiddenComponentList(new[] { "ExampleComponent1", "ExampleComponent2" }, true)
+                    ForbiddenComponents = new List<string> { "ExampleComponent1", "ExampleComponent2" },
+                    ProjectionWeldingSpeed = 1f
                 });
             }
             else
@@ -434,7 +330,8 @@ namespace SafeZoneRepair
                         Enabled = true,
                         AllowProjections = true,
                         ProjectionBuildDelay = 1f,
-                        ForbiddenComponents = NormalizeForbiddenComponentList(null, true)
+                        ForbiddenComponents = new List<string>(),
+                        ProjectionWeldingSpeed = 1f
                     });
                 }
             }
@@ -1098,7 +995,20 @@ namespace SafeZoneRepair
 
             if (!zoneConfigs.TryGetValue(zone.EntityId, out cfg) || cfg == null)
             {
-                cfg = CreateDefaultZoneConfig(zone);
+                string zoneName = GetSafeZoneDefaultName(zone);
+                cfg = new SafeZoneConfig
+                {
+                    ZoneEntityId = zone.EntityId,
+                    ZoneName = zoneName,
+                    DisplayName = zoneName,
+                    WeldingSpeed = weldingSpeed,
+                    CostModifier = costModifier,
+                    Enabled = true,
+                    AllowProjections = true,
+                    ProjectionBuildDelay = 1f,
+                    ForbiddenComponents = new List<string>(),
+                    ProjectionWeldingSpeed = 1f
+                };
                 NormalizeZoneConfig(cfg);
                 zoneConfigs[zone.EntityId] = cfg;
                 SaveConfig(new List<SafeZoneConfig>(zoneConfigs.Values));
@@ -1121,17 +1031,12 @@ namespace SafeZoneRepair
                 if (_adminPanelRequested)
                 {
                     _adminPanelRequested = false;
-                    _adminComponentsViewRequested = false;
                     RefreshUiCursorState();
                     UpdateAdminPanelState();
                     return;
                 }
 
                 _adminPanelRequested = true;
-                _adminComponentsViewRequested = false;
-                _adminComponentsScrollOffset = 0;
-                EnsureAdminComponentCatalogBuilt();
-                SyncAdminForbiddenComponentsFromState();
                 MarkAdminPanelDirty();
                 RequestAdminZoneConfig(false);
                 RefreshUiCursorState();
@@ -1146,77 +1051,6 @@ namespace SafeZoneRepair
         private void RefreshUiCursorState()
         {
             SetInteractiveCursorEnabled(_cockpitInteractiveRequested || _adminPanelRequested);
-        }
-
-        private int GetAdminComponentsMaxScrollOffset()
-        {
-            if (_adminComponentCatalog == null || _adminComponentCatalog.Count <= AdminComponentsPageSize)
-                return 0;
-
-            return _adminComponentCatalog.Count - AdminComponentsPageSize;
-        }
-
-        private void ClampAdminComponentsScrollOffset()
-        {
-            if (_adminComponentsScrollOffset < 0)
-                _adminComponentsScrollOffset = 0;
-
-            int maxOffset = GetAdminComponentsMaxScrollOffset();
-            if (_adminComponentsScrollOffset > maxOffset)
-                _adminComponentsScrollOffset = maxOffset;
-        }
-
-        private int NormalizeMouseWheelToRowDelta(int wheelDelta)
-        {
-            if (wheelDelta == 0)
-                return 0;
-
-            int stepMagnitude = Math.Abs(wheelDelta) / MouseWheelStepSize;
-            if (stepMagnitude <= 0)
-                stepMagnitude = 1;
-
-            return wheelDelta > 0 ? -stepMagnitude : stepMagnitude;
-        }
-
-        private void ScrollAdminComponentsByRows(int rowDelta)
-        {
-            if (!_adminPanelRequested || !_adminComponentsViewRequested || rowDelta == 0)
-                return;
-
-            EnsureAdminComponentCatalogBuilt();
-            if (_adminComponentCatalog == null || _adminComponentCatalog.Count <= 0)
-                return;
-
-            int oldOffset = _adminComponentsScrollOffset;
-            _adminComponentsScrollOffset += rowDelta;
-            ClampAdminComponentsScrollOffset();
-
-            if (oldOffset != _adminComponentsScrollOffset)
-                UpdateAdminPanelState();
-        }
-
-        private void UpdateAdminComponentsScrollInput()
-        {
-            try
-            {
-                if (!_adminPanelRequested || !_adminComponentsViewRequested)
-                    return;
-
-                if (MyAPIGateway.Gui == null || MyAPIGateway.Input == null)
-                    return;
-
-                if (MyAPIGateway.Gui.ChatEntryVisible)
-                    return;
-
-                int wheelDelta = MyAPIGateway.Input.DeltaMouseScrollWheelValue();
-                int rowDelta = NormalizeMouseWheelToRowDelta(wheelDelta);
-                if (rowDelta != 0)
-                    ScrollAdminComponentsByRows(rowDelta);
-            }
-            catch (Exception ex)
-            {
-                LogError($"UpdateAdminComponentsScrollInput error: {ex}");
-            }
         }
 
         private void RequestAdminZoneConfig(bool reload)
@@ -1241,7 +1075,7 @@ namespace SafeZoneRepair
             }
         }
 
-        private void SendAdminZoneConfigUpdateFromClient(string zoneName, bool enabled, float weldingSpeedValue, float costModifierValue, bool allowProjections, List<string> forbiddenComponents)
+        private void SendAdminZoneConfigUpdateFromClient(string zoneName, bool enabled, float weldingSpeedValue, float costModifierValue, bool allowProjections, float projectionWeldingSpeedValue)
         {
             try
             {
@@ -1258,7 +1092,7 @@ namespace SafeZoneRepair
                     WeldingSpeed = weldingSpeedValue,
                     CostModifier = costModifierValue,
                     AllowProjections = allowProjections,
-                    ForbiddenComponents = NormalizeForbiddenComponentList(forbiddenComponents, false)
+                    ProjectionWeldingSpeed = projectionWeldingSpeedValue
                 };
                 byte[] data = MyAPIGateway.Utilities.SerializeToBinary(msg);
                 MyAPIGateway.Multiplayer.SendMessageToServer(AdminZoneConfigUpdateSyncId, data);
@@ -1448,7 +1282,6 @@ namespace SafeZoneRepair
             if (MyAPIGateway.Utilities != null && !MyAPIGateway.Utilities.IsDedicated)
             {
                 UpdateClientHotkeys();
-                UpdateAdminComponentsScrollInput();
                 UpdateClientHudVisibility();
             }
 
@@ -1497,7 +1330,7 @@ namespace SafeZoneRepair
                         }
                     }
 
-                    bool needsRepair = Utils.NeedRepair(block, false) || isProjected;
+                    bool needsRepair = Utils.NeedRepairRobust(block, false) || isProjected;
                     LogRepair($"Checking block {Utils.BlockName(block)}: needsRepair={needsRepair}");
                     if (needsRepair)
                     {
@@ -1623,7 +1456,21 @@ namespace SafeZoneRepair
 
                 if (!zoneConfigs.ContainsKey(zone.EntityId))
                 {
-                    zoneConfigs[zone.EntityId] = CreateDefaultZoneConfig(zone);
+                    string zoneName = GetSafeZoneDefaultName(zone);
+
+                    zoneConfigs[zone.EntityId] = new SafeZoneConfig
+                    {
+                        ZoneName = zoneName,
+                        DisplayName = zoneName,
+                        ZoneEntityId = zone.EntityId,
+                        WeldingSpeed = this.weldingSpeed,
+                        CostModifier = this.costModifier,
+                        Enabled = true,
+                        AllowProjections = true,
+                        ProjectionBuildDelay = 1f,
+                        ForbiddenComponents = new List<string>(),
+                        ProjectionWeldingSpeed = 1f
+                    };
                     SaveConfig(new List<SafeZoneConfig>(zoneConfigs.Values));
                 }
             }
@@ -1680,7 +1527,7 @@ namespace SafeZoneRepair
                 }
 
                 bool isProjected = Utils.IsProjected(block);
-                bool needsRepair = Utils.NeedRepair(block, false) || isProjected;
+                bool needsRepair = Utils.NeedRepairRobust(block, false) || isProjected;
                 bool alreadyInQueue = blocksInQueue.Contains(block);
 
                 if (needsRepair && !alreadyInQueue)
@@ -1907,7 +1754,7 @@ namespace SafeZoneRepair
 
             foreach (var block in blocks)
             {
-                if (block == null || Utils.IsProjected(block) || !Utils.NeedRepair(block, false))
+                if (block == null || Utils.IsProjected(block) || !Utils.NeedRepairRobust(block, false))
                     continue;
 
                 float blockCost = CalculateTotalRepairCost(block, zoneCfg);
@@ -1989,7 +1836,7 @@ namespace SafeZoneRepair
             {
                 if (projector != null && Utils.CanBuild(block, true))
                 {
-                    float delay = zoneCfg != null ? zoneCfg.ProjectionBuildDelay : 1f;
+                    float delay = GetProjectionBuildDelayForZone(currentZone);
                     if ((DateTime.Now - _lastProjectionBuildTime).TotalSeconds < delay)
                     {
                         LogRepair($"Projection build delay {delay}s, skipping this tick");
@@ -2025,9 +1872,11 @@ namespace SafeZoneRepair
             }
 
             float localWeldingSpeed = GetWeldingSpeedForZone(currentZone);
-            float remainingBuildIntegrity = block.MaxIntegrity - block.BuildIntegrity;
+            float remainingBuildIntegrity = Math.Max(0f, block.MaxIntegrity - block.BuildIntegrity);
             bool hasDeformation = block.HasDeformation;
-            bool pureDeformationOnly = remainingBuildIntegrity <= 0.01f && hasDeformation;
+            int missingComponentsBefore = block.GetMissingComponentsTotalCount();
+            bool hasMissingComponents = missingComponentsBefore > 0;
+            bool pureDeformationOnly = remainingBuildIntegrity <= 0.01f && hasDeformation && !hasMissingComponents;
             float currentDamageBefore = block.CurrentDamage;
             float accumulatedDamageBefore = block.AccumulatedDamage;
             float buildIntegrityBefore = block.BuildIntegrity;
@@ -2041,16 +1890,16 @@ namespace SafeZoneRepair
                 if (repairAmount < 1f)
                     repairAmount = Math.Min(remainingBuildIntegrity, 1f);
             }
-            else if (hasDeformation)
+            else if (hasDeformation || hasMissingComponents)
             {
                 repairAmount = Math.Max(repairAmount, 1f);
             }
 
-            LogRepair($"repairAmount={repairAmount}, remainingBuildIntegrity={remainingBuildIntegrity}, BuildIntegrity={block.BuildIntegrity}, MaxIntegrity={block.MaxIntegrity}, HasDeformation={hasDeformation}, CurrentDamage={currentDamageBefore}, AccumulatedDamage={accumulatedDamageBefore}");
+            LogRepair($"repairAmount={repairAmount}, remainingBuildIntegrity={remainingBuildIntegrity}, BuildIntegrity={block.BuildIntegrity}, MaxIntegrity={block.MaxIntegrity}, HasDeformation={hasDeformation}, HasMissingComponents={hasMissingComponents}, MissingComponentsBefore={missingComponentsBefore}, CurrentDamage={currentDamageBefore}, AccumulatedDamage={accumulatedDamageBefore}");
 
-            if (repairAmount <= 0 && !hasDeformation)
+            if (repairAmount <= 0 && !hasDeformation && !hasMissingComponents)
             {
-                LogRepair($"repairAmount <= 0 and no deformation, removing block from queue");
+                LogRepair($"repairAmount <= 0 and block has no deformation or missing components, removing from queue");
                 blocksRepairQueue.Dequeue();
                 blocksInQueue.Remove(block);
                 blockRepairInfo.Remove(block);
@@ -2134,15 +1983,17 @@ namespace SafeZoneRepair
             float currentDamageAfter = block.CurrentDamage;
             float accumulatedDamageAfter = block.AccumulatedDamage;
             bool hasDeformationAfter = block.HasDeformation;
+            int missingComponentsAfter = block.GetMissingComponentsTotalCount();
             bool progressMade =
                 buildIntegrityAfter > buildIntegrityBefore + 0.001f ||
                 currentDamageAfter < currentDamageBefore - 0.001f ||
                 accumulatedDamageAfter < accumulatedDamageBefore - 0.001f ||
-                (hasDeformation && !hasDeformationAfter);
+                (hasDeformation && !hasDeformationAfter) ||
+                missingComponentsAfter < missingComponentsBefore;
 
             SendRepairNotificationToClients(block, false, 0, player.IdentityId);
 
-            if (block.MaxIntegrity - block.BuildIntegrity <= 0.01f && !block.HasDeformation)
+            if (!Utils.NeedRepairRobust(block, false))
             {
                 LogRepair($"Block fully repaired, removing from queue");
                 blocksRepairQueue.Dequeue();
@@ -2198,6 +2049,67 @@ namespace SafeZoneRepair
             return costModifier;
         }
 
+        private float GetProjectionWeldingSpeedForZone(MySafeZone zone)
+        {
+            if (zone == null)
+                return 1f;
+
+            SafeZoneConfig cfg;
+            if (zoneConfigs.TryGetValue(zone.EntityId, out cfg))
+            {
+                NormalizeZoneConfig(cfg);
+                return Math.Max(0.001f, cfg.ProjectionWeldingSpeed);
+            }
+
+            return 1f;
+        }
+
+        private float GetProjectionBuildDelayForZone(MySafeZone zone)
+        {
+            float speed = GetProjectionWeldingSpeedForZone(zone);
+            return (float)Math.Round(1f / Math.Max(0.001f, speed), 2);
+        }
+
+        private IMyCubeGrid FindGridByEntityId(long entityId)
+        {
+            if (entityId == 0)
+                return null;
+
+            var entities = new HashSet<IMyEntity>();
+            MyAPIGateway.Entities.GetEntities(entities, e => e != null && e.EntityId == entityId && e is IMyCubeGrid);
+            foreach (var entity in entities)
+                return entity as IMyCubeGrid;
+
+            return null;
+        }
+
+        private bool GridHasActiveProjector(IMyCubeGrid grid)
+        {
+            if (grid == null)
+                return false;
+
+            var blocks = new List<IMySlimBlock>();
+            grid.GetBlocks(blocks);
+            foreach (var block in blocks)
+            {
+                var projector = block?.FatBlock as IMyProjector;
+                if (projector != null && projector.IsFunctional && projector.IsProjecting)
+                    return true;
+            }
+
+            return false;
+        }
+
+        private string AppendProjectionStatus(string statusText, IMyCubeGrid grid, SafeZoneConfig zoneCfg)
+        {
+            string text = string.IsNullOrWhiteSpace(statusText) ? "In repair zone" : statusText.Trim();
+            if (zoneCfg != null && !zoneCfg.AllowProjections && GridHasActiveProjector(grid))
+                text += " | Projection repair unavailable in this zone";
+
+            return text;
+        }
+
+
         // --- Сетевые уведомления ---
         private void SendRepairNotificationToClients(IMySlimBlock block, bool complete, float cost, long ownerId)
         {
@@ -2224,8 +2136,20 @@ namespace SafeZoneRepair
                 if (targetPlayer != null)
                 {
                     MyAPIGateway.Multiplayer.SendMessageTo(SyncId, data, targetPlayer.SteamUserId);
-                    string nextStatus = GetGridRepairSetting(block.CubeGrid) ? "Repair ready" : "Repair disabled for your ship";
-					SendRepairUiStateToPlayer(targetPlayer, true, block.CubeGrid, GetSafeZoneForGrid(block.CubeGrid), nextStatus, $"{msg.BlockName} repaired! Cost: {msg.Cost} SC");
+
+                    BlockRepairInfo repairInfo;
+                    IMyCubeGrid uiGrid = block.CubeGrid;
+                    if (blockRepairInfo.TryGetValue(block, out repairInfo) && repairInfo.SourceGridEntityId != 0)
+                    {
+                        var sourceGrid = FindGridByEntityId(repairInfo.SourceGridEntityId);
+                        if (sourceGrid != null)
+                            uiGrid = sourceGrid;
+                    }
+
+                    var uiZone = GetSafeZoneForGrid(uiGrid);
+                    bool inZone = uiGrid != null && GridIsInSafeZone(uiGrid);
+                    string nextStatus = uiGrid != null && GetGridRepairSetting(uiGrid) ? "Repair ready" : "Repair disabled for your ship";
+                    SendRepairUiStateToPlayer(targetPlayer, inZone, uiGrid, uiZone, nextStatus, $"{msg.BlockName} repaired! Cost: {msg.Cost} SC");
                 }
                 else
                 {
@@ -2319,9 +2243,12 @@ namespace SafeZoneRepair
                 }
 
                 string blockName = TruncateHudBlockName(Utils.BlockName(queuedBlock), 32);
+                bool queuedProjected = Utils.IsProjected(queuedBlock);
 
                 if (ahead <= 0)
-                    return string.Format("Current repair: {0}", blockName);
+                    return queuedProjected
+                        ? string.Format("Current repair: projection -> {0}", blockName)
+                        : string.Format("Current repair: {0}", blockName);
 
                 return string.Format("Current repair: queued ({0} ahead) -> {1}", ahead, blockName);
             }
@@ -2361,11 +2288,17 @@ namespace SafeZoneRepair
                     continue;
                 }
 
+                bool queuedProjected = Utils.IsProjected(queuedBlock);
                 bool queuedHasBuildWork = queuedBlock.MaxIntegrity - queuedBlock.BuildIntegrity > 0.01f;
                 bool queuedHasDeformation = queuedBlock.HasDeformation;
 
                 if (ahead <= 0)
                 {
+                    if (queuedProjected)
+                        return Utils.CanBuild(queuedBlock, true)
+                            ? "Repair phase: projection welding"
+                            : "Repair phase: projection blocked";
+
                     if (queuedHasBuildWork && queuedHasDeformation)
                         return string.Format("Repair phase: integrity + deformation ({0:0.0}%)", queuedBlock.BuildLevelRatio * 100f);
                     if (queuedHasBuildWork)
@@ -2423,6 +2356,8 @@ namespace SafeZoneRepair
             string zoneName = cfg?.DisplayName ?? cfg?.ZoneName ?? GetSafeZoneDefaultName(zone);
             bool repairEnabled = grid != null && GetGridRepairSetting(grid);
             long estimatedRepairCost = GetEstimatedRepairCostForUi(player, inRepairZone, grid, zone, repairEnabled);
+            string uiStatusText = string.IsNullOrWhiteSpace(statusText) ? (inRepairZone ? "In repair zone" : "Outside repair zone") : statusText;
+            uiStatusText = AppendProjectionStatus(uiStatusText, grid, cfg);
 
             var msg = new RepairUiStateMessage
             {
@@ -2430,7 +2365,7 @@ namespace SafeZoneRepair
                 InRepairZone = inRepairZone,
                 ZoneName = zoneName,
                 RepairEnabled = repairEnabled,
-                StatusText = string.IsNullOrWhiteSpace(statusText) ? (inRepairZone ? "In repair zone" : "Outside repair zone") : statusText,
+                StatusText = uiStatusText,
                 LastRepairText = string.IsNullOrWhiteSpace(lastRepairText) ? _clientUiState.LastRepairText : lastRepairText,
                 LastEventUtcTicks = DateTime.UtcNow.Ticks,
                 EstimatedRepairCost = estimatedRepairCost,
@@ -2498,7 +2433,7 @@ namespace SafeZoneRepair
                 WeldingSpeed = cfg?.WeldingSpeed ?? 0f,
                 CostModifier = cfg?.CostModifier ?? 0f,
                 AllowProjections = cfg?.AllowProjections ?? false,
-                ForbiddenComponents = NormalizeForbiddenComponentList(cfg?.ForbiddenComponents, false)
+                ProjectionWeldingSpeed = cfg?.ProjectionWeldingSpeed ?? 1f
             };
 
             byte[] data = MyAPIGateway.Utilities.SerializeToBinary(msg);
@@ -2562,7 +2497,8 @@ namespace SafeZoneRepair
                 cfg.WeldingSpeed = (float)Math.Round(Math.Max(0.001f, msg.WeldingSpeed), 2);
                 cfg.CostModifier = (float)Math.Round(Math.Max(0.001f, msg.CostModifier), 2);
                 cfg.AllowProjections = msg.AllowProjections;
-                cfg.ForbiddenComponents = NormalizeForbiddenComponentList(msg.ForbiddenComponents, false);
+                cfg.ProjectionWeldingSpeed = (float)Math.Round(Math.Max(0.001f, msg.ProjectionWeldingSpeed), 2);
+                cfg.ProjectionBuildDelay = (float)Math.Round(1f / Math.Max(0.001f, cfg.ProjectionWeldingSpeed), 2);
                 cfg.ZoneEntityId = zone.EntityId;
                 NormalizeZoneConfig(cfg);
                 zoneConfigs[zone.EntityId] = cfg;
@@ -2588,13 +2524,10 @@ namespace SafeZoneRepair
                     return;
 
                 _adminZoneState = msg;
-                SyncAdminForbiddenComponentsFromState();
-                EnsureAdminComponentCatalogBuilt();
                 MarkAdminPanelDirty();
                 if (!msg.Success)
                 {
                     _adminPanelRequested = false;
-                    _adminComponentsViewRequested = false;
                     RefreshUiCursorState();
                 }
 

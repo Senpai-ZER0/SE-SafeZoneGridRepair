@@ -29,6 +29,7 @@ namespace SafeZoneRepair
         }
 
 
+
         public static int GetMissingComponentsTotalCount(this IMySlimBlock target)
         {
             if (target == null || target.IsDestroyed || (target.FatBlock != null && target.FatBlock.Closed))

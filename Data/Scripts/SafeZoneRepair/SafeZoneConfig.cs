@@ -35,5 +35,8 @@ namespace SafeZoneRepair
 
         [ProtoMember(9)]
         public List<string> ForbiddenComponents { get; set; } = new List<string>();
+
+        [ProtoMember(10)]
+        public float ProjectionWeldingSpeed { get; set; } = 1f;
     }
 }
