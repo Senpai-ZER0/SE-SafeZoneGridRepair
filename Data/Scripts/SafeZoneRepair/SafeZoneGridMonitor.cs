@@ -44,7 +44,7 @@ namespace SafeZoneRepair
 
         private bool initialized = false;
         private float weldingSpeed = 3f;
-        private float costModifier = 0.01f;
+        private float costModifier = 1f;
         private Stopwatch deltaTimer;
         private double deltaTime = 0;
         public const ushort SyncId = 2914;
@@ -1617,11 +1617,14 @@ namespace SafeZoneRepair
                 _lastClientHudVisibilityCheck = now;
 
                 var localPlayer = GetLocalPlayer();
-                if (_adminPanelRequested && (!IsPlayerAdmin(localPlayer) || _clientUiState == null || !_clientUiState.InRepairZone))
+                if (_adminPanelRequested && !IsPlayerAdmin(localPlayer))
                 {
                     _adminPanelRequested = false;
+                    _adminPriceModsPanelRequested = false;
+                    _adminComponentsViewRequested = false;
                     RefreshUiCursorState();
                     UpdateAdminPanelState();
+                    UpdateAdminPriceModsPanelState();
                 }
 
                 if (_clientUiState == null || !_clientUiState.InRepairZone)

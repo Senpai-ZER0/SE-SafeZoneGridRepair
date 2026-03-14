@@ -32,7 +32,7 @@ namespace SafeZoneRepair
         public float WeldingSpeed { get; set; } = 1f;
 
         [ProtoMember(5)]
-        public float CostModifier { get; set; } = 0.1f;
+        public float CostModifier { get; set; } = 1f;
 
         [ProtoMember(6)]
         public bool Enabled { get; set; } = true;
