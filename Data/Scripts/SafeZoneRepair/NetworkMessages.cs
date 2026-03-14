@@ -1,4 +1,5 @@
 ﻿using ProtoBuf;
+using System.Collections.Generic;
 using VRageMath; // для Vector3I
 
 namespace SafeZoneRepair
@@ -65,6 +66,7 @@ namespace SafeZoneRepair
         [ProtoMember(5)] public float WeldingSpeed;
         [ProtoMember(6)] public float CostModifier;
         [ProtoMember(7)] public bool AllowProjections;
+        [ProtoMember(8)] public List<string> ForbiddenComponents;
     }
 
     [ProtoContract]
@@ -79,6 +81,7 @@ namespace SafeZoneRepair
         [ProtoMember(7)] public float WeldingSpeed;
         [ProtoMember(8)] public float CostModifier;
         [ProtoMember(9)] public bool AllowProjections;
+        [ProtoMember(10)] public List<string> ForbiddenComponents;
     }
 
 }

@@ -1,4 +1,5 @@
 ﻿using System;
+using System.Collections.Generic;
 using Sandbox.ModAPI;
 using RichHudFramework.Client;
 using RichHudFramework.UI;
@@ -43,11 +44,20 @@ namespace SafeZoneRepair
         private static BorderedButton _adminToggleProjectionsButton;
         private static BorderedButton _adminApplyButton;
         private static BorderedButton _adminLoadConfigButton;
+        private static BorderedButton _adminComponentsButton;
         private static BorderedButton _adminCloseButton;
         private static BorderedButton _adminSpeedMinusButton;
         private static BorderedButton _adminSpeedPlusButton;
         private static BorderedButton _adminCostMinusButton;
         private static BorderedButton _adminCostPlusButton;
+        private static Label _adminComponentsLegendLabel;
+        private static Label _adminComponentsPageLabel;
+        private static Label[] _adminComponentRowLabels;
+        private static BorderedButton[] _adminComponentRowButtons;
+        private static BorderedButton _adminComponentsPrevButton;
+        private static BorderedButton _adminComponentsNextButton;
+        private static BorderedButton _adminComponentsApplyButton;
+        private static BorderedButton _adminComponentsBackButton;
         private static bool _adminPanelFieldsDirty = true;
 
         private static string _stickyLastRepairText;
@@ -143,11 +153,20 @@ namespace SafeZoneRepair
             _adminToggleProjectionsButton = null;
             _adminApplyButton = null;
             _adminLoadConfigButton = null;
+            _adminComponentsButton = null;
             _adminCloseButton = null;
             _adminSpeedMinusButton = null;
             _adminSpeedPlusButton = null;
             _adminCostMinusButton = null;
             _adminCostPlusButton = null;
+            _adminComponentsLegendLabel = null;
+            _adminComponentsPageLabel = null;
+            _adminComponentRowLabels = null;
+            _adminComponentRowButtons = null;
+            _adminComponentsPrevButton = null;
+            _adminComponentsNextButton = null;
+            _adminComponentsApplyButton = null;
+            _adminComponentsBackButton = null;
             _adminPanel = null;
             _adminTitleLabel = null;
             _adminZoneLabel = null;
@@ -164,6 +183,7 @@ namespace SafeZoneRepair
             _adminToggleProjectionsButton = null;
             _adminApplyButton = null;
             _adminLoadConfigButton = null;
+            _adminComponentsButton = null;
             _adminCloseButton = null;
             _toggleRepairButton = null;
             _closeMenuButton = null;
@@ -296,7 +316,7 @@ namespace SafeZoneRepair
             {
                 ParentAlignment = ParentAlignments.InnerTopLeft,
                 Offset = new Vector2(20f, -20f),
-                Size = new Vector2(520f, 412f),
+                Size = new Vector2(560f, 600f),
                 Color = new Color(8, 14, 20, 225),
                 Visible = false
             };
@@ -320,9 +340,28 @@ namespace SafeZoneRepair
             _adminSpeedPlusButton = CreateAdminButton(new Vector2(366f, -216f), new Vector2(56f, 34f), "+");
             _adminCostMinusButton = CreateAdminButton(new Vector2(302f, -268f), new Vector2(56f, 34f), "-");
             _adminCostPlusButton = CreateAdminButton(new Vector2(366f, -268f), new Vector2(56f, 34f), "+");
-            _adminApplyButton = CreateAdminButton(new Vector2(18f, -364f), new Vector2(140f, 34f), "Apply");
-            _adminLoadConfigButton = CreateAdminButton(new Vector2(176f, -364f), new Vector2(140f, 34f), "Load config");
-            _adminCloseButton = CreateAdminButton(new Vector2(350f, -364f), new Vector2(140f, 34f), "Close");
+            _adminApplyButton = CreateAdminButton(new Vector2(18f, -364f), new Vector2(110f, 34f), "Apply");
+            _adminLoadConfigButton = CreateAdminButton(new Vector2(136f, -364f), new Vector2(126f, 34f), "Load cfg");
+            _adminComponentsButton = CreateAdminButton(new Vector2(270f, -364f), new Vector2(150f, 34f), "Components");
+            _adminCloseButton = CreateAdminButton(new Vector2(428f, -364f), new Vector2(110f, 34f), "Close");
+
+            _adminComponentsLegendLabel = CreateAdminLabel(new Vector2(18f, -116f), new Vector2(520f, 42f), 0.74f, TextBuilderModes.Wrapped);
+            _adminComponentsPageLabel = CreateAdminLabel(new Vector2(18f, -464f), new Vector2(300f, 22f), 0.74f);
+            _adminComponentRowLabels = new Label[AdminComponentsPageSize];
+            _adminComponentRowButtons = new BorderedButton[AdminComponentsPageSize];
+            for (int i = 0; i < AdminComponentsPageSize; i++)
+            {
+                float rowY = -156f - (i * 36f);
+                _adminComponentRowLabels[i] = CreateAdminLabel(new Vector2(18f, rowY), new Vector2(398f, 28f), 0.74f);
+                _adminComponentRowButtons[i] = CreateAdminButton(new Vector2(426f, rowY - 2f), new Vector2(112f, 30f), "Allowed");
+                _adminComponentRowLabels[i].Visible = false;
+                _adminComponentRowButtons[i].Visible = false;
+            }
+
+            _adminComponentsPrevButton = CreateAdminButton(new Vector2(18f, -500f), new Vector2(110f, 34f), "Prev");
+            _adminComponentsNextButton = CreateAdminButton(new Vector2(136f, -500f), new Vector2(110f, 34f), "Next");
+            _adminComponentsApplyButton = CreateAdminButton(new Vector2(286f, -500f), new Vector2(118f, 34f), "Apply");
+            _adminComponentsBackButton = CreateAdminButton(new Vector2(420f, -500f), new Vector2(118f, 34f), "Back");
 
             if (_adminZoneNameField != null)
                 _adminZoneNameField.CharFilterFunc = ch => ch >= 32 && ch < 127;
@@ -347,8 +386,26 @@ namespace SafeZoneRepair
                 _adminApplyButton.MouseInput.LeftClicked += AdminApplyClicked;
             if (_adminLoadConfigButton != null)
                 _adminLoadConfigButton.MouseInput.LeftClicked += AdminLoadConfigClicked;
+            if (_adminComponentsButton != null)
+                _adminComponentsButton.MouseInput.LeftClicked += AdminComponentsClicked;
             if (_adminCloseButton != null)
                 _adminCloseButton.MouseInput.LeftClicked += AdminCloseClicked;
+            if (_adminComponentRowButtons != null)
+            {
+                for (int i = 0; i < _adminComponentRowButtons.Length; i++)
+                {
+                    if (_adminComponentRowButtons[i] != null)
+                        _adminComponentRowButtons[i].MouseInput.LeftClicked += AdminComponentToggleClicked;
+                }
+            }
+            if (_adminComponentsPrevButton != null)
+                _adminComponentsPrevButton.MouseInput.LeftClicked += AdminComponentsPrevClicked;
+            if (_adminComponentsNextButton != null)
+                _adminComponentsNextButton.MouseInput.LeftClicked += AdminComponentsNextClicked;
+            if (_adminComponentsApplyButton != null)
+                _adminComponentsApplyButton.MouseInput.LeftClicked += AdminComponentsApplyClicked;
+            if (_adminComponentsBackButton != null)
+                _adminComponentsBackButton.MouseInput.LeftClicked += AdminComponentsBackClicked;
 
             _adminPanelFieldsDirty = true;
             UpdateAdminPanelState();
@@ -394,7 +451,7 @@ namespace SafeZoneRepair
                 Text = text,
                 Visible = true
             };
-            button.Format = new GlyphFormat(Color.White, TextAlignment.Center, 0.76f);
+            button.Format = new GlyphFormat(Color.White, TextAlignment.Center, 0.72f);
             button.Color = new Color(24, 40, 54, 230);
             button.HighlightColor = new Color(70, 110, 145, 230);
             button.FocusColor = new Color(120, 180, 210, 230);
@@ -409,6 +466,166 @@ namespace SafeZoneRepair
             _adminPanelFieldsDirty = true;
         }
 
+        private void SetAdminMainControlsVisible(bool visible)
+        {
+            if (_adminNameLabel != null)
+                _adminNameLabel.Visible = visible;
+            if (_adminEnabledLabel != null)
+                _adminEnabledLabel.Visible = visible;
+            if (_adminSpeedLabel != null)
+                _adminSpeedLabel.Visible = visible;
+            if (_adminCostLabel != null)
+                _adminCostLabel.Visible = visible;
+            if (_adminProjLabel != null)
+                _adminProjLabel.Visible = visible;
+            if (_adminZoneNameField != null)
+                _adminZoneNameField.Visible = visible;
+            if (_adminWeldingSpeedField != null)
+                _adminWeldingSpeedField.Visible = visible;
+            if (_adminCostModifierField != null)
+                _adminCostModifierField.Visible = visible;
+            if (_adminToggleEnabledButton != null)
+                _adminToggleEnabledButton.Visible = visible;
+            if (_adminToggleProjectionsButton != null)
+                _adminToggleProjectionsButton.Visible = visible;
+            if (_adminSpeedMinusButton != null)
+                _adminSpeedMinusButton.Visible = visible;
+            if (_adminSpeedPlusButton != null)
+                _adminSpeedPlusButton.Visible = visible;
+            if (_adminCostMinusButton != null)
+                _adminCostMinusButton.Visible = visible;
+            if (_adminCostPlusButton != null)
+                _adminCostPlusButton.Visible = visible;
+            if (_adminApplyButton != null)
+                _adminApplyButton.Visible = visible;
+            if (_adminLoadConfigButton != null)
+                _adminLoadConfigButton.Visible = visible;
+            if (_adminComponentsButton != null)
+                _adminComponentsButton.Visible = visible;
+        }
+
+        private void SetAdminComponentsControlsVisible(bool visible)
+        {
+            if (_adminComponentsLegendLabel != null)
+                _adminComponentsLegendLabel.Visible = visible;
+            if (_adminComponentsPageLabel != null)
+                _adminComponentsPageLabel.Visible = visible;
+            if (_adminComponentsPrevButton != null)
+                _adminComponentsPrevButton.Visible = visible;
+            if (_adminComponentsNextButton != null)
+                _adminComponentsNextButton.Visible = visible;
+            if (_adminComponentsApplyButton != null)
+                _adminComponentsApplyButton.Visible = visible;
+            if (_adminComponentsBackButton != null)
+                _adminComponentsBackButton.Visible = visible;
+
+            if (_adminComponentRowLabels != null)
+            {
+                for (int i = 0; i < _adminComponentRowLabels.Length; i++)
+                {
+                    if (_adminComponentRowLabels[i] != null)
+                        _adminComponentRowLabels[i].Visible = visible;
+                }
+            }
+
+            if (_adminComponentRowButtons != null)
+            {
+                for (int i = 0; i < _adminComponentRowButtons.Length; i++)
+                {
+                    if (_adminComponentRowButtons[i] != null)
+                        _adminComponentRowButtons[i].Visible = visible;
+                }
+            }
+        }
+
+        private List<AdminComponentCatalogEntry> GetAdminComponentPageEntries()
+        {
+            var entries = new List<AdminComponentCatalogEntry>();
+            if (_adminComponentCatalog == null || _adminComponentCatalog.Count == 0)
+                return entries;
+
+            int startIndex = Math.Max(0, _adminComponentsPage) * AdminComponentsPageSize;
+            if (startIndex >= _adminComponentCatalog.Count)
+                startIndex = 0;
+
+            int endIndex = Math.Min(startIndex + AdminComponentsPageSize, _adminComponentCatalog.Count);
+            for (int i = startIndex; i < endIndex; i++)
+                entries.Add(_adminComponentCatalog[i]);
+
+            return entries;
+        }
+
+        private void UpdateAdminComponentsPage()
+        {
+            EnsureAdminComponentCatalogBuilt();
+            if (_adminComponentCatalog.Count == 0)
+            {
+                if (_adminComponentsLegendLabel != null)
+                    _adminComponentsLegendLabel.Text = "No component definitions found on this client.";
+                if (_adminComponentsPageLabel != null)
+                    _adminComponentsPageLabel.Text = string.Empty;
+                SetAdminComponentsControlsVisible(true);
+                if (_adminComponentRowLabels != null)
+                {
+                    for (int i = 0; i < _adminComponentRowLabels.Length; i++)
+                    {
+                        if (_adminComponentRowLabels[i] != null)
+                            _adminComponentRowLabels[i].Visible = false;
+                        if (_adminComponentRowButtons != null && i < _adminComponentRowButtons.Length && _adminComponentRowButtons[i] != null)
+                            _adminComponentRowButtons[i].Visible = false;
+                    }
+                }
+                return;
+            }
+
+            int totalPages = Math.Max(1, (_adminComponentCatalog.Count + AdminComponentsPageSize - 1) / AdminComponentsPageSize);
+            if (_adminComponentsPage >= totalPages)
+                _adminComponentsPage = totalPages - 1;
+            if (_adminComponentsPage < 0)
+                _adminComponentsPage = 0;
+
+            if (_adminTitleLabel != null)
+                _adminTitleLabel.Text = "Components List";
+            if (_adminStatusLabel != null)
+                _adminStatusLabel.Text = "Checked = allowed. Unchecked = forbidden. Changes stay local until Apply.";
+            if (_adminComponentsLegendLabel != null)
+                _adminComponentsLegendLabel.Text = "Zone forbidden list is saved per safe zone. Prototech components are added to new configs by default.";
+            if (_adminComponentsPageLabel != null)
+                _adminComponentsPageLabel.Text = string.Format("Page {0}/{1}  |  Components: {2}  |  Forbidden: {3}", _adminComponentsPage + 1, totalPages, _adminComponentCatalog.Count, _adminForbiddenComponentsLocal.Count);
+            if (_adminComponentsPrevButton != null)
+                _adminComponentsPrevButton.Text = totalPages > 1 ? "Prev" : "Prev";
+            if (_adminComponentsNextButton != null)
+                _adminComponentsNextButton.Text = totalPages > 1 ? "Next" : "Next";
+
+            var pageEntries = GetAdminComponentPageEntries();
+            for (int i = 0; i < AdminComponentsPageSize; i++)
+            {
+                var label = _adminComponentRowLabels != null && i < _adminComponentRowLabels.Length ? _adminComponentRowLabels[i] : null;
+                var button = _adminComponentRowButtons != null && i < _adminComponentRowButtons.Length ? _adminComponentRowButtons[i] : null;
+                if (i >= pageEntries.Count)
+                {
+                    if (label != null)
+                        label.Visible = false;
+                    if (button != null)
+                        button.Visible = false;
+                    continue;
+                }
+
+                var entry = pageEntries[i];
+                bool allowed = !_adminForbiddenComponentsLocal.Contains(entry.SubtypeId);
+                if (label != null)
+                {
+                    label.Text = string.Format("{0}  [{1}]", entry.DisplayName, entry.SubtypeId);
+                    label.Visible = true;
+                }
+                if (button != null)
+                {
+                    button.Text = allowed ? "Allowed" : "Forbid";
+                    button.Visible = true;
+                }
+            }
+        }
+
         private void UpdateAdminPanelState()
         {
             if (_adminPanel == null)
@@ -420,13 +637,28 @@ namespace SafeZoneRepair
                 return;
 
             var state = _adminZoneState ?? new AdminZoneConfigStateMessage();
-            if (_adminTitleLabel != null)
-                _adminTitleLabel.Text = "Safe Zone Admin";
             if (_adminZoneLabel != null)
                 _adminZoneLabel.Text = string.IsNullOrWhiteSpace(state.ZoneName) ? "Zone: -" : "Zone: " + state.ZoneName;
+
+            if (_adminCloseButton != null)
+                _adminCloseButton.Visible = !_adminComponentsViewRequested;
+
+            if (_adminComponentsViewRequested)
+            {
+                SetAdminMainControlsVisible(false);
+                SetAdminComponentsControlsVisible(true);
+                UpdateAdminComponentsPage();
+                return;
+            }
+
+            SetAdminMainControlsVisible(true);
+            SetAdminComponentsControlsVisible(false);
+
+            if (_adminTitleLabel != null)
+                _adminTitleLabel.Text = "Safe Zone Admin";
             if (_adminStatusLabel != null)
                 _adminStatusLabel.Text = state.Success
-                    ? "Edit the zone values below, then press Apply. Load config restores the current server configuration."
+                    ? "Edit the zone values below, then press Apply. Components opens the allowed/forbidden list for this zone."
                     : (string.IsNullOrWhiteSpace(state.ErrorText) ? "Admin panel unavailable." : state.ErrorText);
             if (_adminNameLabel != null)
                 _adminNameLabel.Text = "Zone name";
@@ -545,7 +777,7 @@ namespace SafeZoneRepair
                 speed = NormalizeAdminFloat(speed);
                 cost = NormalizeAdminFloat(cost);
                 string zoneName = _adminZoneNameField?.Text.ToString() ?? _adminZoneState.ZoneName ?? string.Empty;
-                SendAdminZoneConfigUpdateFromClient(zoneName, _adminZoneState.Enabled, speed, cost, _adminZoneState.AllowProjections);
+                SendAdminZoneConfigUpdateFromClient(zoneName, _adminZoneState.Enabled, speed, cost, _adminZoneState.AllowProjections, GetAdminForbiddenComponentsSnapshot());
             }
             catch (Exception ex)
             {
@@ -555,13 +787,103 @@ namespace SafeZoneRepair
 
         private void AdminLoadConfigClicked(object sender, EventArgs e)
         {
+            _adminComponentsViewRequested = false;
             MarkAdminPanelDirty();
             RequestAdminZoneConfig(true);
+        }
+
+        private void AdminComponentsClicked(object sender, EventArgs e)
+        {
+            EnsureAdminComponentCatalogBuilt();
+            _adminComponentsViewRequested = true;
+            _adminComponentsPage = 0;
+            UpdateAdminPanelState();
+        }
+
+        private void AdminComponentToggleClicked(object sender, EventArgs e)
+        {
+            if (_adminComponentRowButtons == null)
+                return;
+
+            int rowIndex = -1;
+            for (int i = 0; i < _adminComponentRowButtons.Length; i++)
+            {
+                if (ReferenceEquals(sender, _adminComponentRowButtons[i]))
+                {
+                    rowIndex = i;
+                    break;
+                }
+            }
+
+            if (rowIndex < 0)
+                return;
+
+            int componentIndex = (_adminComponentsPage * AdminComponentsPageSize) + rowIndex;
+            if (componentIndex < 0 || componentIndex >= _adminComponentCatalog.Count)
+                return;
+
+            string subtypeId = _adminComponentCatalog[componentIndex].SubtypeId;
+            if (_adminForbiddenComponentsLocal.Contains(subtypeId))
+                _adminForbiddenComponentsLocal.Remove(subtypeId);
+            else
+                _adminForbiddenComponentsLocal.Add(subtypeId);
+
+            UpdateAdminPanelState();
+        }
+
+        private void AdminComponentsPrevClicked(object sender, EventArgs e)
+        {
+            if (_adminComponentsPage > 0)
+                _adminComponentsPage--;
+            UpdateAdminPanelState();
+        }
+
+        private void AdminComponentsNextClicked(object sender, EventArgs e)
+        {
+            int totalPages = _adminComponentCatalog.Count > 0 ? (_adminComponentCatalog.Count + AdminComponentsPageSize - 1) / AdminComponentsPageSize : 1;
+            if (_adminComponentsPage + 1 < totalPages)
+                _adminComponentsPage++;
+            UpdateAdminPanelState();
+        }
+
+        private void AdminComponentsApplyClicked(object sender, EventArgs e)
+        {
+            try
+            {
+                float speed = _adminZoneState != null ? NormalizeAdminFloat(_adminZoneState.WeldingSpeed) : 1f;
+                float cost = _adminZoneState != null ? NormalizeAdminFloat(_adminZoneState.CostModifier) : 1f;
+                if (_adminWeldingSpeedField != null)
+                {
+                    float parsedSpeed;
+                    if (TryParseAdminFloat(_adminWeldingSpeedField, out parsedSpeed))
+                        speed = parsedSpeed;
+                }
+                if (_adminCostModifierField != null)
+                {
+                    float parsedCost;
+                    if (TryParseAdminFloat(_adminCostModifierField, out parsedCost))
+                        cost = parsedCost;
+                }
+                string zoneName = _adminZoneNameField?.Text.ToString() ?? _adminZoneState?.ZoneName ?? string.Empty;
+                SendAdminZoneConfigUpdateFromClient(zoneName, _adminZoneState != null && _adminZoneState.Enabled, speed, cost, _adminZoneState != null && _adminZoneState.AllowProjections, GetAdminForbiddenComponentsSnapshot());
+            }
+            catch (Exception ex)
+            {
+                LogError("AdminComponentsApplyClicked error: " + ex);
+            }
+        }
+
+        private void AdminComponentsBackClicked(object sender, EventArgs e)
+        {
+            _adminComponentsViewRequested = false;
+            MarkAdminPanelDirty();
+            UpdateAdminPanelState();
         }
 
         private void AdminCloseClicked(object sender, EventArgs e)
         {
             _adminPanelRequested = false;
+            _adminComponentsViewRequested = false;
             RefreshUiCursorState();
             UpdateAdminPanelState();
         }

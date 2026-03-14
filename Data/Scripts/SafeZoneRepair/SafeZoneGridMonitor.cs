@@ -106,7 +106,18 @@ namespace SafeZoneRepair
         private static TextPage _rhfOverviewPage;
 
         private bool _adminPanelRequested = false;
+        private bool _adminComponentsViewRequested = false;
+        private int _adminComponentsPage = 0;
         private AdminZoneConfigStateMessage _adminZoneState = new AdminZoneConfigStateMessage();
+        private readonly HashSet<string> _adminForbiddenComponentsLocal = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+        private readonly List<AdminComponentCatalogEntry> _adminComponentCatalog = new List<AdminComponentCatalogEntry>();
+        private const int AdminComponentsPageSize = 8;
+
+        private sealed class AdminComponentCatalogEntry
+        {
+            public string SubtypeId;
+            public string DisplayName;
+        }
 
         private sealed class EstimatedRepairCostCacheEntry
         {
@@ -269,6 +280,111 @@ namespace SafeZoneRepair
             return "Repair Zone";
         }
 
+        private static List<string> CreateDefaultForbiddenComponents()
+        {
+            return new List<string>
+            {
+                "PrototechCapacitor",
+                "PrototechCircuitry",
+                "PrototechCoolingUnit",
+                "PrototechFrame",
+                "PrototechMachinery",
+                "PrototechPanel",
+                "PrototechPropulsionUnit"
+            };
+        }
+
+        private static List<string> NormalizeForbiddenComponentList(IEnumerable<string> components, bool includeBaseDefaults)
+        {
+            var set = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+
+            if (components != null)
+            {
+                foreach (var component in components)
+                {
+                    if (string.IsNullOrWhiteSpace(component))
+                        continue;
+
+                    set.Add(component.Trim());
+                }
+            }
+
+            if (includeBaseDefaults)
+            {
+                foreach (var component in CreateDefaultForbiddenComponents())
+                    set.Add(component);
+            }
+
+            var list = new List<string>(set);
+            list.Sort(StringComparer.OrdinalIgnoreCase);
+            return list;
+        }
+
+        private SafeZoneConfig CreateDefaultZoneConfig(MySafeZone zone)
+        {
+            string zoneName = GetSafeZoneDefaultName(zone);
+            return new SafeZoneConfig
+            {
+                ZoneEntityId = zone?.EntityId ?? 0,
+                ZoneName = zoneName,
+                DisplayName = zoneName,
+                WeldingSpeed = weldingSpeed,
+                CostModifier = costModifier,
+                Enabled = true,
+                AllowProjections = true,
+                ProjectionBuildDelay = 1f,
+                ForbiddenComponents = NormalizeForbiddenComponentList(null, true)
+            };
+        }
+
+        private void EnsureAdminComponentCatalogBuilt()
+        {
+            if (_adminComponentCatalog.Count > 0 || MyDefinitionManager.Static == null)
+                return;
+
+            var seen = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+            foreach (var definition in MyDefinitionManager.Static.GetAllDefinitions())
+            {
+                var componentDefinition = definition as MyComponentDefinition;
+                if (componentDefinition == null)
+                    continue;
+
+                string subtypeId = componentDefinition.Id.SubtypeName;
+                if (string.IsNullOrWhiteSpace(subtypeId) || !seen.Add(subtypeId))
+                    continue;
+
+                string displayName = componentDefinition.DisplayNameText;
+                if (string.IsNullOrWhiteSpace(displayName))
+                    displayName = subtypeId;
+
+                _adminComponentCatalog.Add(new AdminComponentCatalogEntry
+                {
+                    SubtypeId = subtypeId,
+                    DisplayName = displayName.Trim()
+                });
+            }
+
+            _adminComponentCatalog.Sort((a, b) => string.Compare(a.DisplayName, b.DisplayName, StringComparison.OrdinalIgnoreCase));
+        }
+
+        private void SyncAdminForbiddenComponentsFromState()
+        {
+            _adminForbiddenComponentsLocal.Clear();
+            if (_adminZoneState?.ForbiddenComponents == null)
+                return;
+
+            foreach (var component in _adminZoneState.ForbiddenComponents)
+            {
+                if (!string.IsNullOrWhiteSpace(component))
+                    _adminForbiddenComponentsLocal.Add(component.Trim());
+            }
+        }
+
+        private List<string> GetAdminForbiddenComponentsSnapshot()
+        {
+            return NormalizeForbiddenComponentList(_adminForbiddenComponentsLocal, false);
+        }
+
         private static void NormalizeZoneConfig(SafeZoneConfig cfg)
         {
             if (cfg == null)
@@ -280,8 +396,7 @@ namespace SafeZoneRepair
             if (string.IsNullOrWhiteSpace(cfg.DisplayName))
                 cfg.DisplayName = cfg.ZoneName;
 
-            if (cfg.ForbiddenComponents == null)
-                cfg.ForbiddenComponents = new List<string>();
+            cfg.ForbiddenComponents = NormalizeForbiddenComponentList(cfg.ForbiddenComponents, false);
         }
 
         private void SaveDefaultConfig()
@@ -299,7 +414,7 @@ namespace SafeZoneRepair
                     Enabled = true,
                     AllowProjections = true,
                     ProjectionBuildDelay = 1f,
-                    ForbiddenComponents = new List<string> { "ExampleComponent1", "ExampleComponent2" }
+                    ForbiddenComponents = NormalizeForbiddenComponentList(new[] { "ExampleComponent1", "ExampleComponent2" }, true)
                 });
             }
             else
@@ -318,7 +433,7 @@ namespace SafeZoneRepair
                         Enabled = true,
                         AllowProjections = true,
                         ProjectionBuildDelay = 1f,
-                        ForbiddenComponents = new List<string>()
+                        ForbiddenComponents = NormalizeForbiddenComponentList(null, true)
                     });
                 }
             }
@@ -982,19 +1097,7 @@ namespace SafeZoneRepair
 
             if (!zoneConfigs.TryGetValue(zone.EntityId, out cfg) || cfg == null)
             {
-                string zoneName = GetSafeZoneDefaultName(zone);
-                cfg = new SafeZoneConfig
-                {
-                    ZoneEntityId = zone.EntityId,
-                    ZoneName = zoneName,
-                    DisplayName = zoneName,
-                    WeldingSpeed = weldingSpeed,
-                    CostModifier = costModifier,
-                    Enabled = true,
-                    AllowProjections = true,
-                    ProjectionBuildDelay = 1f,
-                    ForbiddenComponents = new List<string>()
-                };
+                cfg = CreateDefaultZoneConfig(zone);
                 NormalizeZoneConfig(cfg);
                 zoneConfigs[zone.EntityId] = cfg;
                 SaveConfig(new List<SafeZoneConfig>(zoneConfigs.Values));
@@ -1017,12 +1120,17 @@ namespace SafeZoneRepair
                 if (_adminPanelRequested)
                 {
                     _adminPanelRequested = false;
+                    _adminComponentsViewRequested = false;
                     RefreshUiCursorState();
                     UpdateAdminPanelState();
                     return;
                 }
 
                 _adminPanelRequested = true;
+                _adminComponentsViewRequested = false;
+                _adminComponentsPage = 0;
+                EnsureAdminComponentCatalogBuilt();
+                SyncAdminForbiddenComponentsFromState();
                 MarkAdminPanelDirty();
                 RequestAdminZoneConfig(false);
                 RefreshUiCursorState();
@@ -1061,7 +1169,7 @@ namespace SafeZoneRepair
             }
         }
 
-        private void SendAdminZoneConfigUpdateFromClient(string zoneName, bool enabled, float weldingSpeedValue, float costModifierValue, bool allowProjections)
+        private void SendAdminZoneConfigUpdateFromClient(string zoneName, bool enabled, float weldingSpeedValue, float costModifierValue, bool allowProjections, List<string> forbiddenComponents)
         {
             try
             {
@@ -1077,7 +1185,8 @@ namespace SafeZoneRepair
                     Enabled = enabled,
                     WeldingSpeed = weldingSpeedValue,
                     CostModifier = costModifierValue,
-                    AllowProjections = allowProjections
+                    AllowProjections = allowProjections,
+                    ForbiddenComponents = NormalizeForbiddenComponentList(forbiddenComponents, false)
                 };
                 byte[] data = MyAPIGateway.Utilities.SerializeToBinary(msg);
                 MyAPIGateway.Multiplayer.SendMessageToServer(AdminZoneConfigUpdateSyncId, data);
@@ -1315,7 +1424,7 @@ namespace SafeZoneRepair
                         }
                     }
 
-                    bool needsRepair = Utils.NeedRepairRobust(block, false) || isProjected;
+                    bool needsRepair = Utils.NeedRepair(block, false) || isProjected;
                     LogRepair($"Checking block {Utils.BlockName(block)}: needsRepair={needsRepair}");
                     if (needsRepair)
                     {
@@ -1441,20 +1550,7 @@ namespace SafeZoneRepair
 
                 if (!zoneConfigs.ContainsKey(zone.EntityId))
                 {
-                    string zoneName = GetSafeZoneDefaultName(zone);
-
-                    zoneConfigs[zone.EntityId] = new SafeZoneConfig
-                    {
-                        ZoneName = zoneName,
-                        DisplayName = zoneName,
-                        ZoneEntityId = zone.EntityId,
-                        WeldingSpeed = this.weldingSpeed,
-                        CostModifier = this.costModifier,
-                        Enabled = true,
-                        AllowProjections = true,
-                        ProjectionBuildDelay = 1f,
-                        ForbiddenComponents = new List<string>()
-                    };
+                    zoneConfigs[zone.EntityId] = CreateDefaultZoneConfig(zone);
                     SaveConfig(new List<SafeZoneConfig>(zoneConfigs.Values));
                 }
             }
@@ -1511,7 +1607,7 @@ namespace SafeZoneRepair
                 }
 
                 bool isProjected = Utils.IsProjected(block);
-                bool needsRepair = Utils.NeedRepairRobust(block, false) || isProjected;
+                bool needsRepair = Utils.NeedRepair(block, false) || isProjected;
                 bool alreadyInQueue = blocksInQueue.Contains(block);
 
                 if (needsRepair && !alreadyInQueue)
@@ -1738,7 +1834,7 @@ namespace SafeZoneRepair
 
             foreach (var block in blocks)
             {
-                if (block == null || Utils.IsProjected(block) || !Utils.NeedRepairRobust(block, false))
+                if (block == null || Utils.IsProjected(block) || !Utils.NeedRepair(block, false))
                     continue;
 
                 float blockCost = CalculateTotalRepairCost(block, zoneCfg);
@@ -1856,11 +1952,9 @@ namespace SafeZoneRepair
             }
 
             float localWeldingSpeed = GetWeldingSpeedForZone(currentZone);
-            float remainingBuildIntegrity = Math.Max(0f, block.MaxIntegrity - block.BuildIntegrity);
+            float remainingBuildIntegrity = block.MaxIntegrity - block.BuildIntegrity;
             bool hasDeformation = block.HasDeformation;
-            int missingComponentsBefore = block.GetMissingComponentsTotalCount();
-            bool hasMissingComponents = missingComponentsBefore > 0;
-            bool pureDeformationOnly = remainingBuildIntegrity <= 0.01f && hasDeformation && !hasMissingComponents;
+            bool pureDeformationOnly = remainingBuildIntegrity <= 0.01f && hasDeformation;
             float currentDamageBefore = block.CurrentDamage;
             float accumulatedDamageBefore = block.AccumulatedDamage;
             float buildIntegrityBefore = block.BuildIntegrity;
@@ -1874,16 +1968,16 @@ namespace SafeZoneRepair
                 if (repairAmount < 1f)
                     repairAmount = Math.Min(remainingBuildIntegrity, 1f);
             }
-            else if (hasDeformation || hasMissingComponents)
+            else if (hasDeformation)
             {
                 repairAmount = Math.Max(repairAmount, 1f);
             }
 
-            LogRepair($"repairAmount={repairAmount}, remainingBuildIntegrity={remainingBuildIntegrity}, BuildIntegrity={block.BuildIntegrity}, MaxIntegrity={block.MaxIntegrity}, HasDeformation={hasDeformation}, HasMissingComponents={hasMissingComponents}, MissingComponentsBefore={missingComponentsBefore}, CurrentDamage={currentDamageBefore}, AccumulatedDamage={accumulatedDamageBefore}");
+            LogRepair($"repairAmount={repairAmount}, remainingBuildIntegrity={remainingBuildIntegrity}, BuildIntegrity={block.BuildIntegrity}, MaxIntegrity={block.MaxIntegrity}, HasDeformation={hasDeformation}, CurrentDamage={currentDamageBefore}, AccumulatedDamage={accumulatedDamageBefore}");
 
-            if (repairAmount <= 0 && !hasDeformation && !hasMissingComponents)
+            if (repairAmount <= 0 && !hasDeformation)
             {
-                LogRepair($"repairAmount <= 0 and block has no deformation or missing components, removing from queue");
+                LogRepair($"repairAmount <= 0 and no deformation, removing block from queue");
                 blocksRepairQueue.Dequeue();
                 blocksInQueue.Remove(block);
                 blockRepairInfo.Remove(block);
@@ -1967,17 +2061,15 @@ namespace SafeZoneRepair
             float currentDamageAfter = block.CurrentDamage;
             float accumulatedDamageAfter = block.AccumulatedDamage;
             bool hasDeformationAfter = block.HasDeformation;
-            int missingComponentsAfter = block.GetMissingComponentsTotalCount();
             bool progressMade =
                 buildIntegrityAfter > buildIntegrityBefore + 0.001f ||
                 currentDamageAfter < currentDamageBefore - 0.001f ||
                 accumulatedDamageAfter < accumulatedDamageBefore - 0.001f ||
-                (hasDeformation && !hasDeformationAfter) ||
-                missingComponentsAfter < missingComponentsBefore;
+                (hasDeformation && !hasDeformationAfter);
 
             SendRepairNotificationToClients(block, false, 0, player.IdentityId);
 
-            if (!Utils.NeedRepairRobust(block, false))
+            if (block.MaxIntegrity - block.BuildIntegrity <= 0.01f && !block.HasDeformation)
             {
                 LogRepair($"Block fully repaired, removing from queue");
                 blocksRepairQueue.Dequeue();
@@ -2332,7 +2424,8 @@ namespace SafeZoneRepair
                 Enabled = cfg?.Enabled ?? false,
                 WeldingSpeed = cfg?.WeldingSpeed ?? 0f,
                 CostModifier = cfg?.CostModifier ?? 0f,
-                AllowProjections = cfg?.AllowProjections ?? false
+                AllowProjections = cfg?.AllowProjections ?? false,
+                ForbiddenComponents = NormalizeForbiddenComponentList(cfg?.ForbiddenComponents, false)
             };
 
             byte[] data = MyAPIGateway.Utilities.SerializeToBinary(msg);
@@ -2396,6 +2489,7 @@ namespace SafeZoneRepair
                 cfg.WeldingSpeed = (float)Math.Round(Math.Max(0.001f, msg.WeldingSpeed), 2);
                 cfg.CostModifier = (float)Math.Round(Math.Max(0.001f, msg.CostModifier), 2);
                 cfg.AllowProjections = msg.AllowProjections;
+                cfg.ForbiddenComponents = NormalizeForbiddenComponentList(msg.ForbiddenComponents, false);
                 cfg.ZoneEntityId = zone.EntityId;
                 NormalizeZoneConfig(cfg);
                 zoneConfigs[zone.EntityId] = cfg;
@@ -2421,10 +2515,13 @@ namespace SafeZoneRepair
                     return;
 
                 _adminZoneState = msg;
+                SyncAdminForbiddenComponentsFromState();
+                EnsureAdminComponentCatalogBuilt();
                 MarkAdminPanelDirty();
                 if (!msg.Success)
                 {
                     _adminPanelRequested = false;
+                    _adminComponentsViewRequested = false;
                     RefreshUiCursorState();
                 }
 
