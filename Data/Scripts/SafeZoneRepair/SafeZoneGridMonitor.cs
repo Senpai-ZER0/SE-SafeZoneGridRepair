@@ -343,6 +343,11 @@ namespace SafeZoneRepair
             if (cfg.ForbiddenComponents == null)
                 cfg.ForbiddenComponents = new List<string>();
 
+            if (cfg.ComponentPriceModifiers == null)
+                cfg.ComponentPriceModifiers = new List<ComponentPriceModifierEntry>();
+            else
+                NormalizeComponentPriceModifiers(cfg.ComponentPriceModifiers);
+
             cfg.ZoneCreationType = NormalizeZoneCreationTypeValue(cfg.ZoneCreationType);
 
             if (cfg.ProjectionWeldingSpeed < 0.001f)
@@ -355,6 +360,83 @@ namespace SafeZoneRepair
 
             if (cfg.ProjectionBuildDelay < 0.001f)
                 cfg.ProjectionBuildDelay = (float)Math.Round(1f / Math.Max(0.001f, cfg.ProjectionWeldingSpeed), 2);
+        }
+
+        private static void NormalizeComponentPriceModifiers(List<ComponentPriceModifierEntry> modifiers)
+        {
+            if (modifiers == null)
+                return;
+
+            var normalized = new Dictionary<string, float>(StringComparer.OrdinalIgnoreCase);
+            foreach (var entry in modifiers)
+            {
+                if (entry == null)
+                    continue;
+
+                string normalizedKey = NormalizeComponentModifierKey(entry.ComponentSubtypeId);
+                if (string.IsNullOrWhiteSpace(normalizedKey))
+                    continue;
+
+                float value = entry.Multiplier;
+                if (float.IsNaN(value) || float.IsInfinity(value) || value < 0f)
+                    value = 0f;
+
+                normalized[normalizedKey] = (float)Math.Round(value, 3);
+            }
+
+            modifiers.Clear();
+            foreach (var pair in normalized)
+            {
+                modifiers.Add(new ComponentPriceModifierEntry
+                {
+                    ComponentSubtypeId = pair.Key,
+                    Multiplier = pair.Value
+                });
+            }
+        }
+
+        private static string NormalizeComponentModifierKey(string key)
+        {
+            if (string.IsNullOrWhiteSpace(key))
+                return null;
+
+            key = key.Trim();
+            const string prefix = "MyObjectBuilder_Component/";
+            if (key.StartsWith(prefix, StringComparison.OrdinalIgnoreCase))
+                key = key.Substring(prefix.Length);
+
+            return string.IsNullOrWhiteSpace(key) ? null : key;
+        }
+
+        private static bool TryGetComponentPriceModifier(SafeZoneConfig zoneCfg, MyDefinitionId id, out float modifier)
+        {
+            modifier = 1f;
+            if (zoneCfg == null || zoneCfg.ComponentPriceModifiers == null || zoneCfg.ComponentPriceModifiers.Count == 0)
+                return false;
+
+            string subtype = id.SubtypeId.String;
+            if (string.IsNullOrWhiteSpace(subtype))
+                return false;
+
+            string fullKey = "MyObjectBuilder_Component/" + subtype;
+            foreach (var entry in zoneCfg.ComponentPriceModifiers)
+            {
+                if (entry == null)
+                    continue;
+
+                string key = NormalizeComponentModifierKey(entry.ComponentSubtypeId);
+                if (string.IsNullOrWhiteSpace(key))
+                    continue;
+
+                if (string.Equals(key, subtype, StringComparison.OrdinalIgnoreCase) ||
+                    string.Equals(key, fullKey, StringComparison.OrdinalIgnoreCase))
+                {
+                    modifier = Math.Max(0f, entry.Multiplier);
+                    return true;
+                }
+            }
+
+            return false;
         }
 
         private void SaveDefaultConfig()
@@ -375,7 +457,8 @@ namespace SafeZoneRepair
                     ForbiddenComponents = new List<string> { "ExampleComponent1", "ExampleComponent2" },
                     ProjectionWeldingSpeed = 1f,
                     DebugMode = false,
-                    ZoneCreationType = ZoneCreationTypeSafeZoneBlock
+                    ZoneCreationType = ZoneCreationTypeSafeZoneBlock,
+                    ComponentPriceModifiers = new List<ComponentPriceModifierEntry>()
                 });
             }
             else
@@ -397,7 +480,8 @@ namespace SafeZoneRepair
                         ForbiddenComponents = new List<string>(),
                         ProjectionWeldingSpeed = 1f,
                         DebugMode = false,
-                        ZoneCreationType = DetectZoneCreationType(zone)
+                        ZoneCreationType = DetectZoneCreationType(zone),
+                        ComponentPriceModifiers = new List<ComponentPriceModifierEntry>()
                     });
                 }
             }
@@ -1065,7 +1149,8 @@ namespace SafeZoneRepair
                     ForbiddenComponents = new List<string>(),
                     ProjectionWeldingSpeed = 1f,
                     DebugMode = false,
-                    ZoneCreationType = DetectZoneCreationType(zone)
+                    ZoneCreationType = DetectZoneCreationType(zone),
+                    ComponentPriceModifiers = new List<ComponentPriceModifierEntry>()
                 };
                 NormalizeZoneConfig(cfg);
                 zoneConfigs[zone.EntityId] = cfg;
@@ -1690,7 +1775,8 @@ namespace SafeZoneRepair
                         ForbiddenComponents = new List<string>(),
                         ProjectionWeldingSpeed = 1f,
                         DebugMode = false,
-                        ZoneCreationType = DetectZoneCreationType(zone)
+                        ZoneCreationType = DetectZoneCreationType(zone),
+                        ComponentPriceModifiers = new List<ComponentPriceModifierEntry>()
                     };
                     SaveConfig(new List<SafeZoneConfig>(zoneConfigs.Values));
                 }
@@ -1932,7 +2018,17 @@ namespace SafeZoneRepair
                 return -1;
 
             var def = MyDefinitionManager.Static.GetComponentDefinition(id);
-            return def?.MinimalPricePerUnit > 0 ? def.MinimalPricePerUnit : 1f;
+            float baseCost = def?.MinimalPricePerUnit > 0 ? def.MinimalPricePerUnit : 1f;
+
+            float componentModifier;
+            if (TryGetComponentPriceModifier(zoneCfg, id, out componentModifier))
+            {
+                float finalCost = baseCost * componentModifier;
+                LogZone($"Component price override for {id.SubtypeId.String}: base={baseCost}, modifier={componentModifier}, final={finalCost}");
+                return finalCost;
+            }
+
+            return baseCost;
         }
 
         private long GetPlayerCreditBalance(IMyPlayer player)

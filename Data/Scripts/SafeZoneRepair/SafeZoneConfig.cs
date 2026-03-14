@@ -3,6 +3,16 @@ using ProtoBuf;
 
 namespace SafeZoneRepair
 {
+    [ProtoContract]
+    public class ComponentPriceModifierEntry
+    {
+        [ProtoMember(1)]
+        public string ComponentSubtypeId { get; set; }
+
+        [ProtoMember(2)]
+        public float Multiplier { get; set; } = 1f;
+    }
+
     /// <summary>
     /// Конфигурация отдельной безопасной зоны.
     /// </summary>
@@ -44,5 +54,8 @@ namespace SafeZoneRepair
 
         [ProtoMember(12)]
         public string ZoneCreationType { get; set; } = "SafeZoneBlock";
+
+        [ProtoMember(13)]
+        public List<ComponentPriceModifierEntry> ComponentPriceModifiers { get; set; } = new List<ComponentPriceModifierEntry>();
     }
 }
