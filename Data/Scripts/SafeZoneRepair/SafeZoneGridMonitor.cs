@@ -42,6 +42,10 @@ namespace SafeZoneRepair
 		private static readonly TimeSpan clientHudVisibilityCheckInterval = TimeSpan.FromMilliseconds(200);
         private static readonly TimeSpan estimatedRepairCostCacheInterval = TimeSpan.FromMilliseconds(750);
 
+        private TimeSpan _lastZoneConfigCleanupCheck = TimeSpan.Zero;
+        private static readonly TimeSpan zoneConfigCleanupInterval = TimeSpan.FromSeconds(60);
+        private const int MissingZoneConfigRemovalThreshold = 3;
+
         private bool initialized = false;
         private float weldingSpeed = 3f;
         private float costModifier = 1f;
@@ -82,6 +86,7 @@ namespace SafeZoneRepair
         private Dictionary<long, string> _lastPlayerStatusText = new Dictionary<long, string>();
         private Dictionary<long, DateTime> _lastPlayerStatusTime = new Dictionary<long, DateTime>();
         private Dictionary<long, EstimatedRepairCostCacheEntry> _estimatedRepairCostCache = new Dictionary<long, EstimatedRepairCostCacheEntry>();
+        private Dictionary<long, int> _missingZoneConfigChecks = new Dictionary<long, int>();
 
         // Флаг для предотвращения повторной регистрации обработчиков на клиенте
         private static bool _clientHandlersRegistered = false;
@@ -212,6 +217,7 @@ namespace SafeZoneRepair
                 _lastPlayerStatusText.Clear();
                 _lastPlayerStatusTime.Clear();
                 _estimatedRepairCostCache.Clear();
+                _missingZoneConfigChecks.Clear();
                 _lastControlledGridByPlayer.Clear();
                 _currentScanBlockByPlayer.Clear();
                 _currentScanUntilByPlayer.Clear();
@@ -1259,10 +1265,16 @@ namespace SafeZoneRepair
             if (zoneEntityId == 0)
                 return false;
 
-            for (int i = 0; i < safeZones.Count; i++)
+            for (int i = safeZones.Count - 1; i >= 0; i--)
             {
                 var candidate = safeZones[i];
-                if (candidate != null && !candidate.MarkedForClose && candidate.EntityId == zoneEntityId)
+                if (!IsSafeZoneEntityAlive(candidate))
+                {
+                    safeZones.RemoveAt(i);
+                    continue;
+                }
+
+                if (candidate.EntityId == zoneEntityId)
                 {
                     zone = candidate;
                     return true;
@@ -1273,7 +1285,7 @@ namespace SafeZoneRepair
             if (MyAPIGateway.Entities != null && MyAPIGateway.Entities.TryGetEntityById(zoneEntityId, out entity))
             {
                 zone = entity as MySafeZone;
-                if (zone != null && !zone.MarkedForClose)
+                if (IsSafeZoneEntityAlive(zone))
                     return true;
             }
 
@@ -1782,6 +1794,8 @@ namespace SafeZoneRepair
                 CheckAllPilotedGrids();
             }
 
+            UpdateZoneConfigCleanup(now);
+
             LogRepair($"Queue count: {blocksRepairQueue.Count}");
             if (blocksRepairQueue.Count > 0)
             {
@@ -1901,20 +1915,141 @@ namespace SafeZoneRepair
             }
         }
 
+
+        private void UpdateZoneConfigCleanup(TimeSpan now)
+        {
+            if (now - _lastZoneConfigCleanupCheck < zoneConfigCleanupInterval)
+                return;
+
+            _lastZoneConfigCleanupCheck = now;
+            CleanupMissingZoneConfigs();
+        }
+
+        private void CleanupMissingZoneConfigs()
+        {
+            try
+            {
+                CleanupStaleSafeZoneReferences();
+
+                if (zoneConfigs.Count == 0)
+                    return;
+
+                bool changed = false;
+                var zoneIdsToRemove = new List<long>();
+
+                foreach (var pair in zoneConfigs)
+                {
+                    long zoneEntityId = pair.Key;
+                    if (DoesSafeZoneStillExist(zoneEntityId))
+                    {
+                        _missingZoneConfigChecks.Remove(zoneEntityId);
+                        continue;
+                    }
+
+                    int missingChecks = 0;
+                    _missingZoneConfigChecks.TryGetValue(zoneEntityId, out missingChecks);
+                    missingChecks++;
+                    _missingZoneConfigChecks[zoneEntityId] = missingChecks;
+
+                    LogGeneral($"Zone config cleanup miss {missingChecks}/{MissingZoneConfigRemovalThreshold} for zone {zoneEntityId}");
+
+                    if (missingChecks >= MissingZoneConfigRemovalThreshold)
+                        zoneIdsToRemove.Add(zoneEntityId);
+                }
+
+                for (int i = 0; i < zoneIdsToRemove.Count; i++)
+                {
+                    long zoneEntityId = zoneIdsToRemove[i];
+                    RemoveZoneConfigAndRuntimeState(zoneEntityId);
+                    changed = true;
+                    LogGeneral($"Removed stale zone config for missing safe zone {zoneEntityId}");
+                }
+
+                if (changed)
+                    SaveConfig(new List<SafeZoneConfig>(zoneConfigs.Values));
+            }
+            catch (Exception ex)
+            {
+                LogError($"CleanupMissingZoneConfigs error: {ex}");
+            }
+        }
+
+        private void CleanupStaleSafeZoneReferences()
+        {
+            for (int i = safeZones.Count - 1; i >= 0; i--)
+            {
+                var zone = safeZones[i];
+                if (!IsSafeZoneEntityAlive(zone))
+                {
+                    long zoneEntityId = zone != null ? zone.EntityId : 0L;
+                    safeZones.RemoveAt(i);
+                    if (zoneEntityId != 0L)
+                        LogGeneral($"Removed stale safe zone reference {zoneEntityId}");
+                }
+            }
+        }
+
+        private bool DoesSafeZoneStillExist(long zoneEntityId)
+        {
+            if (zoneEntityId == 0L)
+                return false;
+
+            MySafeZone zone;
+            return TryGetSafeZoneByEntityId(zoneEntityId, out zone) && IsSafeZoneEntityAlive(zone);
+        }
+
+        private static bool IsSafeZoneEntityAlive(MySafeZone zone)
+        {
+            if (zone == null || zone.MarkedForClose)
+                return false;
+
+            IMyEntity entity;
+            return MyAPIGateway.Entities != null &&
+                   MyAPIGateway.Entities.TryGetEntityById(zone.EntityId, out entity) &&
+                   entity is MySafeZone;
+        }
+
+        private void RemoveZoneConfigAndRuntimeState(long zoneEntityId)
+        {
+            zoneConfigs.Remove(zoneEntityId);
+            _missingZoneConfigChecks.Remove(zoneEntityId);
+
+            for (int i = safeZones.Count - 1; i >= 0; i--)
+            {
+                var zone = safeZones[i];
+                if (zone != null && zone.EntityId == zoneEntityId)
+                    safeZones.RemoveAt(i);
+            }
+
+            var cachedCostKeysToRemove = new List<long>();
+            foreach (var pair in _estimatedRepairCostCache)
+            {
+                if (pair.Value != null && pair.Value.ZoneEntityId == zoneEntityId)
+                    cachedCostKeysToRemove.Add(pair.Key);
+            }
+
+            for (int i = 0; i < cachedCostKeysToRemove.Count; i++)
+                _estimatedRepairCostCache.Remove(cachedCostKeysToRemove[i]);
+        }
+
         // --- Инициализация безопасных зон ---
         private void InitializeSafeZones()
         {
+            safeZones.Clear();
+
             HashSet<IMyEntity> entities = new HashSet<IMyEntity>();
             MyAPIGateway.Entities.GetEntities(entities, e => e is MySafeZone);
             foreach (IMyEntity entity in entities)
             {
                 MySafeZone zone = entity as MySafeZone;
-                if (zone != null)
-                {
-                    safeZones.Add(zone);
-                    LogGeneral($"Added safe zone: {zone.DisplayName} (ID: {zone.EntityId}, radius {zone.Radius})");
-                }
+                if (!IsSafeZoneEntityAlive(zone))
+                    continue;
+
+                safeZones.Add(zone);
+                LogGeneral($"Added safe zone: {zone.DisplayName} (ID: {zone.EntityId}, radius {zone.Radius})");
             }
+
+            CleanupStaleSafeZoneReferences();
             LogGeneral($"Total safe zones: {safeZones.Count}");
         }
 
@@ -1922,9 +2057,23 @@ namespace SafeZoneRepair
         {
             if (!MyAPIGateway.Multiplayer.IsServer) return;
             MySafeZone zone = entity as MySafeZone;
-            if (zone != null)
+            if (zone != null && IsSafeZoneEntityAlive(zone))
             {
-                safeZones.Add(zone);
+                bool alreadyTracked = false;
+                for (int i = 0; i < safeZones.Count; i++)
+                {
+                    var existingZone = safeZones[i];
+                    if (existingZone != null && existingZone.EntityId == zone.EntityId)
+                    {
+                        alreadyTracked = true;
+                        break;
+                    }
+                }
+
+                if (!alreadyTracked)
+                    safeZones.Add(zone);
+
+                _missingZoneConfigChecks.Remove(zone.EntityId);
                 LogGeneral($"New safe zone added: {zone.DisplayName}");
 
                 if (!zoneConfigs.ContainsKey(zone.EntityId))
