@@ -3395,7 +3395,7 @@ namespace SafeZoneRepair
         private string BuildRestrictedComponentsHudText(SafeZoneConfig cfg, int maxLength = 92)
         {
             if (cfg == null || cfg.ForbiddenComponents == null || cfg.ForbiddenComponents.Count == 0)
-                return "Last repair: No major restrictions listed";
+                return "Restricted comps: none";
 
             var components = new List<string>();
             for (int i = 0; i < cfg.ForbiddenComponents.Count; i++)
@@ -3412,11 +3412,11 @@ namespace SafeZoneRepair
             }
 
             if (components.Count == 0)
-                return "Last repair: No major restrictions listed";
+                return "Restricted comps: none";
 
             components.Sort(StringComparer.OrdinalIgnoreCase);
             string joined = string.Join(", ", components);
-            string prefix = "Restricted: ";
+            string prefix = "Restricted comps: ";
             if (joined.Length + prefix.Length <= maxLength)
                 return prefix + joined;
 
@@ -3458,7 +3458,7 @@ namespace SafeZoneRepair
                     ZoneName = GetPlayerFacingZoneHeaderName(cfg, source.ZoneName),
                     RepairEnabled = source.RepairEnabled,
                     StatusText = string.Format("Zone details | Service: {0}", GetPlayerFacingServiceName(cfg)),
-                    LastRepairText = BuildRestrictedComponentsHudText(cfg),
+                    LastRepairText = BuildRestrictedComponentsHudText(cfg, 4096),
                     LastEventUtcTicks = source.LastEventUtcTicks,
                     EstimatedRepairCost = source.EstimatedRepairCost,
                     CurrentScanText = string.Format("Current scan: Profile {0} | Variant {1}", string.IsNullOrWhiteSpace(cfg.AssignedProfileId) ? "-" : cfg.AssignedProfileId, string.IsNullOrWhiteSpace(cfg.AssignedVariantId) ? "-" : cfg.AssignedVariantId),

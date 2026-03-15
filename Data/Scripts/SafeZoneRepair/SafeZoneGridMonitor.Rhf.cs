@@ -29,6 +29,18 @@ namespace SafeZoneRepair
         private static BorderedButton _forceRescanButton;
         private static BorderedButton _closeMenuButton;
 
+        private static BorderBox _zoneDetailsRestrictedPanel;
+        private static TexturedBox _zoneDetailsRestrictedBackgroundBox;
+        private static Label _zoneDetailsRestrictedTitleLabel;
+        private static Label _zoneDetailsRestrictedZoneLabel;
+        private static Label _zoneDetailsRestrictedHintLabel;
+        private static Label[] _zoneDetailsRestrictedRowLabels;
+        private static readonly List<string> _zoneDetailsRestrictedItems = new List<string>();
+        private static int _zoneDetailsRestrictedScrollOffset = 0;
+        private static string _zoneDetailsRestrictedCurrentZoneName;
+        private static string _zoneDetailsRestrictedCurrentSource;
+        private const int ZoneDetailsRestrictedPageSize = 10;
+
         private static BorderBox _adminPanel;
         private static Label _adminTitleLabel;
         private static Label _adminZonesListLabel;
@@ -183,6 +195,20 @@ namespace SafeZoneRepair
             _toggleRepairButton = null;
             _forceRescanButton = null;
             _closeMenuButton = null;
+            if (_zoneDetailsRestrictedPanel != null)
+            {
+                _zoneDetailsRestrictedPanel.Unregister();
+                _zoneDetailsRestrictedPanel = null;
+            }
+            _zoneDetailsRestrictedBackgroundBox = null;
+            _zoneDetailsRestrictedTitleLabel = null;
+            _zoneDetailsRestrictedZoneLabel = null;
+            _zoneDetailsRestrictedHintLabel = null;
+            _zoneDetailsRestrictedRowLabels = null;
+            _zoneDetailsRestrictedItems.Clear();
+            _zoneDetailsRestrictedScrollOffset = 0;
+            _zoneDetailsRestrictedCurrentZoneName = null;
+            _zoneDetailsRestrictedCurrentSource = null;
             _adminPanel = null;
             _adminTitleLabel = null;
             _adminZonesListLabel = null;
@@ -266,6 +292,20 @@ namespace SafeZoneRepair
             _adminCloseButton = null;
             _toggleRepairButton = null;
             _closeMenuButton = null;
+            if (_zoneDetailsRestrictedPanel != null)
+            {
+                _zoneDetailsRestrictedPanel.Unregister();
+                _zoneDetailsRestrictedPanel = null;
+            }
+            _zoneDetailsRestrictedBackgroundBox = null;
+            _zoneDetailsRestrictedTitleLabel = null;
+            _zoneDetailsRestrictedZoneLabel = null;
+            _zoneDetailsRestrictedHintLabel = null;
+            _zoneDetailsRestrictedRowLabels = null;
+            _zoneDetailsRestrictedItems.Clear();
+            _zoneDetailsRestrictedScrollOffset = 0;
+            _zoneDetailsRestrictedCurrentZoneName = null;
+            _zoneDetailsRestrictedCurrentSource = null;
             _adminZonesListLabel = null;
             _adminZoneSelectButtons = null;
             _adminZonePrevButton = null;
@@ -359,6 +399,8 @@ namespace SafeZoneRepair
             _forceRescanButton = CreateMenuButton(new Vector2(178f, -274f), new Vector2(136f, 36f), "Rescan");
             _closeMenuButton = CreateMenuButton(new Vector2(334f, -274f), new Vector2(136f, 36f), "Close");
 
+            EnsureZoneDetailsRestrictedPanelCreated();
+
             if (_toggleRepairButton != null)
                 _toggleRepairButton.MouseInput.LeftClicked += ToggleRepairButtonClicked;
 
@@ -406,6 +448,194 @@ namespace SafeZoneRepair
             button.BorderThickness = 1f;
 
             return button;
+        }
+
+        private void EnsureZoneDetailsRestrictedPanelCreated()
+        {
+            if (_zoneDetailsRestrictedPanel != null)
+                return;
+
+            _zoneDetailsRestrictedPanel = new BorderBox(RichHudFramework.UI.Client.HudMain.HighDpiRoot)
+            {
+                ParentAlignment = ParentAlignments.InnerTopRight,
+                Offset = new Vector2(-740f, -15f),
+                Size = new Vector2(360f, 320f),
+                Color = new Color(110, 140, 170, 210),
+                Visible = false
+            };
+
+            _zoneDetailsRestrictedBackgroundBox = new TexturedBox(_zoneDetailsRestrictedPanel)
+            {
+                ParentAlignment = ParentAlignments.InnerTopLeft,
+                Offset = new Vector2(0f, 0f),
+                Size = new Vector2(360f, 320f),
+                Color = new Color(0, 0, 0, 185),
+                Visible = true
+            };
+
+            _zoneDetailsRestrictedTitleLabel = new Label(_zoneDetailsRestrictedPanel)
+            {
+                ParentAlignment = ParentAlignments.InnerTopLeft,
+                Offset = new Vector2(18f, -8f),
+                Size = new Vector2(324f, 24f),
+                AutoResize = false,
+                VertCenterText = false,
+                BuilderMode = TextBuilderModes.Lined,
+                Format = new GlyphFormat(Color.White, TextAlignment.Left, 0.92f),
+                Text = "Restricted Components"
+            };
+
+            _zoneDetailsRestrictedZoneLabel = new Label(_zoneDetailsRestrictedPanel)
+            {
+                ParentAlignment = ParentAlignments.InnerTopLeft,
+                Offset = new Vector2(18f, -34f),
+                Size = new Vector2(324f, 38f),
+                AutoResize = false,
+                VertCenterText = false,
+                BuilderMode = TextBuilderModes.Wrapped,
+                Format = new GlyphFormat(new Color(210, 225, 240), TextAlignment.Left, 0.70f),
+                Text = "Zone: -"
+            };
+
+            _zoneDetailsRestrictedRowLabels = new Label[ZoneDetailsRestrictedPageSize];
+            for (int i = 0; i < ZoneDetailsRestrictedPageSize; i++)
+            {
+                _zoneDetailsRestrictedRowLabels[i] = new Label(_zoneDetailsRestrictedPanel)
+                {
+                    ParentAlignment = ParentAlignments.InnerTopLeft,
+                    Offset = new Vector2(18f, -72f - (i * 20f)),
+                    Size = new Vector2(324f, 18f),
+                    AutoResize = false,
+                    VertCenterText = false,
+                    BuilderMode = TextBuilderModes.Wrapped,
+                    Format = new GlyphFormat(Color.White, TextAlignment.Left, 0.66f),
+                    Text = string.Empty
+                };
+            }
+
+            _zoneDetailsRestrictedHintLabel = new Label(_zoneDetailsRestrictedPanel)
+            {
+                ParentAlignment = ParentAlignments.InnerTopLeft,
+                Offset = new Vector2(18f, -286f),
+                Size = new Vector2(324f, 24f),
+                AutoResize = false,
+                VertCenterText = false,
+                BuilderMode = TextBuilderModes.Lined,
+                Format = new GlyphFormat(new Color(175, 205, 225), TextAlignment.Left, 0.62f),
+                Text = "Wheel: scroll list"
+            };
+
+            UpdateZoneDetailsRestrictedPanelState();
+        }
+
+        private void HideZoneDetailsRestrictedPanel()
+        {
+            if (_zoneDetailsRestrictedPanel != null)
+                _zoneDetailsRestrictedPanel.Visible = false;
+        }
+
+        private void ClampZoneDetailsRestrictedScrollOffset()
+        {
+            int maxOffset = Math.Max(0, _zoneDetailsRestrictedItems.Count - ZoneDetailsRestrictedPageSize);
+            if (_zoneDetailsRestrictedScrollOffset < 0)
+                _zoneDetailsRestrictedScrollOffset = 0;
+            if (_zoneDetailsRestrictedScrollOffset > maxOffset)
+                _zoneDetailsRestrictedScrollOffset = maxOffset;
+        }
+
+        private void ScrollZoneDetailsRestrictedByRows(int delta)
+        {
+            if (_zoneDetailsRestrictedItems == null || _zoneDetailsRestrictedItems.Count == 0)
+                return;
+
+            _zoneDetailsRestrictedScrollOffset += delta;
+            ClampZoneDetailsRestrictedScrollOffset();
+            UpdateZoneDetailsRestrictedPanelState();
+        }
+
+        private void UpdateZoneDetailsRestrictedPanelContent(string zoneName, string restrictedText)
+        {
+            EnsureZoneDetailsRestrictedPanelCreated();
+
+            string cleanZone = string.IsNullOrWhiteSpace(zoneName) ? "Repair Zone" : zoneName.Trim();
+            if (_zoneDetailsRestrictedZoneLabel != null)
+                _zoneDetailsRestrictedZoneLabel.Text = "Zone: " + cleanZone;
+
+            string source = restrictedText ?? string.Empty;
+            const string prefix = "Restricted comps:";
+            if (source.StartsWith(prefix, StringComparison.OrdinalIgnoreCase))
+                source = source.Substring(prefix.Length).Trim();
+
+            bool contentChanged = !string.Equals(_zoneDetailsRestrictedCurrentZoneName, cleanZone, StringComparison.Ordinal)
+                || !string.Equals(_zoneDetailsRestrictedCurrentSource, source, StringComparison.Ordinal);
+
+            if (!contentChanged)
+            {
+                UpdateZoneDetailsRestrictedPanelState();
+                return;
+            }
+
+            _zoneDetailsRestrictedCurrentZoneName = cleanZone;
+            _zoneDetailsRestrictedCurrentSource = source;
+            _zoneDetailsRestrictedItems.Clear();
+            _zoneDetailsRestrictedScrollOffset = 0;
+
+            if (string.IsNullOrWhiteSpace(source) || source.Equals("none", StringComparison.OrdinalIgnoreCase))
+            {
+                _zoneDetailsRestrictedItems.Add("None");
+            }
+            else
+            {
+                string[] tokens = source.Split(new[] { ',' }, StringSplitOptions.RemoveEmptyEntries);
+                for (int i = 0; i < tokens.Length; i++)
+                {
+                    string item = tokens[i] == null ? string.Empty : tokens[i].Trim();
+                    if (item.Length == 0)
+                        continue;
+
+                    _zoneDetailsRestrictedItems.Add(item);
+                }
+
+                if (_zoneDetailsRestrictedItems.Count == 0)
+                    _zoneDetailsRestrictedItems.Add("None");
+            }
+
+            _zoneDetailsRestrictedItems.Sort(StringComparer.OrdinalIgnoreCase);
+            UpdateZoneDetailsRestrictedPanelState();
+        }
+
+        private void UpdateZoneDetailsRestrictedPanelState()
+        {
+            if (_zoneDetailsRestrictedPanel == null || _zoneDetailsRestrictedRowLabels == null)
+                return;
+
+            ClampZoneDetailsRestrictedScrollOffset();
+            int visibleCount = Math.Min(ZoneDetailsRestrictedPageSize, _zoneDetailsRestrictedItems.Count);
+
+            for (int i = 0; i < _zoneDetailsRestrictedRowLabels.Length; i++)
+            {
+                var label = _zoneDetailsRestrictedRowLabels[i];
+                if (label == null)
+                    continue;
+
+                int index = _zoneDetailsRestrictedScrollOffset + i;
+                if (index >= 0 && index < _zoneDetailsRestrictedItems.Count)
+                    label.Text = string.Format("{0}. {1}", index + 1, _zoneDetailsRestrictedItems[index]);
+                else
+                    label.Text = string.Empty;
+            }
+
+            if (_zoneDetailsRestrictedHintLabel != null)
+            {
+                if (_zoneDetailsRestrictedItems.Count <= ZoneDetailsRestrictedPageSize)
+                    _zoneDetailsRestrictedHintLabel.Text = "Wheel: list fixed";
+                else
+                {
+                    int first = _zoneDetailsRestrictedScrollOffset + 1;
+                    int last = Math.Min(_zoneDetailsRestrictedScrollOffset + visibleCount, _zoneDetailsRestrictedItems.Count);
+                    _zoneDetailsRestrictedHintLabel.Text = string.Format("Wheel: {0}-{1} of {2}", first, last, _zoneDetailsRestrictedItems.Count);
+                }
+            }
         }
 
         private void EnsureAdminPanelCreated()
@@ -943,18 +1173,25 @@ namespace SafeZoneRepair
         {
             if (MyAPIGateway.Input == null)
                 return;
-            if (!_adminPanelRequested)
-                return;
 
             int delta = MyAPIGateway.Input.DeltaMouseScrollWheelValue();
             if (delta == 0)
                 return;
 
             int rowDelta = delta > 0 ? -1 : 1;
-            if (_adminPriceModsPanelRequested)
-                ScrollAdminPriceModsByRows(rowDelta);
-            else if (_adminComponentsViewRequested)
-                ScrollAdminComponentsByRows(rowDelta);
+
+            if (_adminPanelRequested)
+            {
+                if (_adminPriceModsPanelRequested)
+                    ScrollAdminPriceModsByRows(rowDelta);
+                else if (_adminComponentsViewRequested)
+                    ScrollAdminComponentsByRows(rowDelta);
+
+                return;
+            }
+
+            if (_zoneDetailsRestrictedPanel != null && _zoneDetailsRestrictedPanel.Visible)
+                ScrollZoneDetailsRestrictedByRows(rowDelta);
         }
 
         private void AdminOpenPriceModsClicked(object sender, EventArgs e)
@@ -1748,29 +1985,54 @@ namespace SafeZoneRepair
 				? "Status: Awaiting status update"
 				: "Status: " + state.StatusText.Trim();
 
-			if (!string.IsNullOrWhiteSpace(state.LastRepairText))
+			bool zoneDetailsMode = !string.IsNullOrWhiteSpace(state.StatusText)
+				&& state.StatusText.IndexOf("Zone details", StringComparison.OrdinalIgnoreCase) >= 0;
+
+			if (!zoneDetailsMode && !string.IsNullOrWhiteSpace(state.LastRepairText))
 			{
 				_stickyLastRepairText = state.LastRepairText.Trim();
 				_stickyLastRepairUntil = DateTime.UtcNow.AddSeconds(StickyLastRepairSeconds);
 			}
 
 			string repairText;
-			if (!string.IsNullOrWhiteSpace(_stickyLastRepairText) && DateTime.UtcNow < _stickyLastRepairUntil)
+			if (zoneDetailsMode)
+			{
+				repairText = string.Empty;
+			}
+			else if (!string.IsNullOrWhiteSpace(_stickyLastRepairText) && DateTime.UtcNow < _stickyLastRepairUntil)
+			{
 				repairText = "Last repair: " + _stickyLastRepairText;
+			}
 			else
+			{
 				repairText = FormatLastRepair(_stickyLastRepairText);
+			}
 
             long estimatedRepairCost = state.EstimatedRepairCost < 0 ? 0 : state.EstimatedRepairCost;
             string currentScanText = string.IsNullOrWhiteSpace(state.CurrentScanText) ? "Current scan: -" : state.CurrentScanText.Trim();
             string currentRepairText = string.IsNullOrWhiteSpace(state.CurrentRepairText) ? "Current repair: -" : state.CurrentRepairText.Trim();
             string phaseText = string.IsNullOrWhiteSpace(state.RepairPhaseText) ? "Repair phase: idle" : state.RepairPhaseText.Trim();
             string costText = string.Format("Estimated cost: {0} SC", estimatedRepairCost);
+            string actionsText;
             if (interactiveMenuVisible)
-                repairText = string.Format("{0}\nActions: Ctrl+J close | Ctrl+R repair | Ctrl+N hide HUD", repairText);
+                actionsText = "Actions: Ctrl+J HUD | Ctrl+R Repair\nCtrl+M Details";
             else if (GetLocalControlledShipController() != null)
-                repairText = string.Format("{0}\nActions: Ctrl+J menu | Ctrl+R repair | Ctrl+N hide HUD", repairText);
+                actionsText = zoneDetailsMode ? "Actions: Ctrl+J Menu | Ctrl+R Repair\nCtrl+M Details | Wheel List" : "Actions: Ctrl+J Menu | Ctrl+R Repair\nCtrl+M Details";
             else
-                repairText = string.Format("{0}\nActions: Ctrl+J info | Ctrl+N hide HUD", repairText);
+                actionsText = zoneDetailsMode ? "Actions: Ctrl+J Info | Ctrl+M Details\nWheel: Restricted list" : "Actions: Ctrl+J Info | Ctrl+M Details";
+
+            repairText = string.IsNullOrWhiteSpace(repairText) ? actionsText : string.Format("{0}\n{1}", repairText, actionsText);
+
+            if (zoneDetailsMode)
+            {
+                UpdateZoneDetailsRestrictedPanelContent(zoneName, state.LastRepairText);
+                if (_zoneDetailsRestrictedPanel != null)
+                    _zoneDetailsRestrictedPanel.Visible = true;
+            }
+            else
+            {
+                HideZoneDetailsRestrictedPanel();
+            }
 
 			SetInteractiveMenuVisible(interactiveMenuVisible, state.RepairEnabled);
 
@@ -1824,6 +2086,8 @@ namespace SafeZoneRepair
 
             if (_panel != null)
                 _panel.Visible = false;
+
+            HideZoneDetailsRestrictedPanel();
 
             if (_adminPanel != null)
                 _adminPanel.Visible = _adminPanelRequested;
