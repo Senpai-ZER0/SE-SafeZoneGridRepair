@@ -131,32 +131,155 @@ namespace SafeZoneRepair
                         new ZoneProfileVariantDefinition
                         {
                             VariantId = "Default",
-                            WeldingSpeed = 1.0f,
-                            ProjectionWeldingSpeed = 1.0f,
-                            CostModifier = 1.0f,
+                            WeldingSpeed = 1.00f,
+                            ProjectionWeldingSpeed = 1.00f,
+                            CostModifier = 1.00f,
                             AllowProjections = true,
-                            ProjectionBuildDelay = 1.0f,
-                            ForbiddenComponents = new List<string>()
+                            ProjectionBuildDelay = 1.00f,
+                            PlayerServiceName = "General Service",
+                            PlayerRestrictionsSummary = "No major restrictions",
+                            PlayerDetailsDescription = "General-purpose service zone with balanced pricing and support for most standard systems.",
+                            WeldingSpeedRandomMin = -0.04f,
+                            WeldingSpeedRandomMax = 0.06f,
+                            ProjectionWeldingSpeedRandomMin = -0.06f,
+                            ProjectionWeldingSpeedRandomMax = 0.08f,
+                            CostModifierRandomMin = 0.00f,
+                            CostModifierRandomMax = 0.06f,
+                            ProjectionBuildDelayRandomMin = -0.04f,
+                            ProjectionBuildDelayRandomMax = 0.06f,
+                            ForbiddenComponents = new List<string>(),
+                            ComponentPriceModifiers = new List<ComponentPriceModifierEntry>()
                         },
                         new ZoneProfileVariantDefinition
                         {
                             VariantId = "Conservative",
-                            WeldingSpeed = 0.9f,
-                            ProjectionWeldingSpeed = 0.9f,
-                            CostModifier = 0.95f,
+                            WeldingSpeed = 0.92f,
+                            ProjectionWeldingSpeed = 0.88f,
+                            CostModifier = 0.96f,
                             AllowProjections = false,
-                            ProjectionBuildDelay = 1.11f,
-                            ForbiddenComponents = new List<string> { "Superconductor" }
+                            ProjectionBuildDelay = 1.10f,
+                            PlayerServiceName = "General Service",
+                            PlayerRestrictionsSummary = "Projection support unavailable",
+                            PlayerDetailsDescription = "Conservative utility service focused on routine repairs with reduced projection support.",
+                            WeldingSpeedRandomMin = -0.05f,
+                            WeldingSpeedRandomMax = 0.04f,
+                            ProjectionWeldingSpeedRandomMin = -0.05f,
+                            ProjectionWeldingSpeedRandomMax = 0.03f,
+                            CostModifierRandomMin = -0.02f,
+                            CostModifierRandomMax = 0.05f,
+                            ProjectionBuildDelayRandomMin = -0.02f,
+                            ProjectionBuildDelayRandomMax = 0.08f,
+                            ForbiddenComponents = new List<string> { "Superconductor" },
+                            ComponentPriceModifiers = new List<ComponentPriceModifierEntry>()
                         },
                         new ZoneProfileVariantDefinition
                         {
                             VariantId = "LightService",
-                            WeldingSpeed = 1.05f,
-                            ProjectionWeldingSpeed = 0.95f,
-                            CostModifier = 1.05f,
+                            WeldingSpeed = 1.04f,
+                            ProjectionWeldingSpeed = 0.96f,
+                            CostModifier = 1.04f,
                             AllowProjections = true,
-                            ProjectionBuildDelay = 1.05f,
-                            ForbiddenComponents = new List<string> { "GravityGenerator" }
+                            ProjectionBuildDelay = 1.04f,
+                            PlayerServiceName = "General Service",
+                            PlayerRestrictionsSummary = "Gravity hardware limited",
+                            PlayerDetailsDescription = "Balanced general service with moderate throughput and limited support for gravity systems.",
+                            WeldingSpeedRandomMin = -0.03f,
+                            WeldingSpeedRandomMax = 0.07f,
+                            ProjectionWeldingSpeedRandomMin = -0.04f,
+                            ProjectionWeldingSpeedRandomMax = 0.06f,
+                            CostModifierRandomMin = 0.00f,
+                            CostModifierRandomMax = 0.06f,
+                            ProjectionBuildDelayRandomMin = -0.04f,
+                            ProjectionBuildDelayRandomMax = 0.05f,
+                            ForbiddenComponents = new List<string> { "GravityGenerator" },
+                            ComponentPriceModifiers = new List<ComponentPriceModifierEntry>
+                            {
+                                new ComponentPriceModifierEntry { ComponentSubtypeId = "Detector", Multiplier = 1.05f }
+                            }
+                        }
+                    }
+                },
+                new ZoneGenerationProfileDefinition
+                {
+                    ProfileId = ZoneProfileIds.Civilian,
+                    Variants = new List<ZoneProfileVariantDefinition>
+                    {
+                        new ZoneProfileVariantDefinition
+                        {
+                            VariantId = "Affordable",
+                            WeldingSpeed = 0.92f,
+                            ProjectionWeldingSpeed = 0.86f,
+                            CostModifier = 0.94f,
+                            AllowProjections = false,
+                            ProjectionBuildDelay = 1.18f,
+                            PlayerServiceName = "Civilian Service",
+                            PlayerRestrictionsSummary = "Advanced power and gravity parts limited",
+                            PlayerDetailsDescription = "Affordable civilian service focused on routine hull and system repairs. Advanced power and gravity systems are limited.",
+                            WeldingSpeedRandomMin = -0.05f,
+                            WeldingSpeedRandomMax = 0.06f,
+                            ProjectionWeldingSpeedRandomMin = -0.05f,
+                            ProjectionWeldingSpeedRandomMax = 0.05f,
+                            CostModifierRandomMin = -0.02f,
+                            CostModifierRandomMax = 0.06f,
+                            ProjectionBuildDelayRandomMin = -0.02f,
+                            ProjectionBuildDelayRandomMax = 0.08f,
+                            ForbiddenComponents = new List<string> { "Superconductor", "GravityGenerator" },
+                            ComponentPriceModifiers = new List<ComponentPriceModifierEntry>
+                            {
+                                new ComponentPriceModifierEntry { ComponentSubtypeId = "PowerCell", Multiplier = 1.12f }
+                            }
+                        },
+                        new ZoneProfileVariantDefinition
+                        {
+                            VariantId = "Reliable",
+                            WeldingSpeed = 1.00f,
+                            ProjectionWeldingSpeed = 0.98f,
+                            CostModifier = 1.02f,
+                            AllowProjections = true,
+                            ProjectionBuildDelay = 1.00f,
+                            PlayerServiceName = "Civilian Service",
+                            PlayerRestrictionsSummary = "Advanced power parts limited",
+                            PlayerDetailsDescription = "Reliable port-side service with standard throughput, moderate prices, and support for common civilian systems.",
+                            WeldingSpeedRandomMin = -0.04f,
+                            WeldingSpeedRandomMax = 0.06f,
+                            ProjectionWeldingSpeedRandomMin = -0.04f,
+                            ProjectionWeldingSpeedRandomMax = 0.08f,
+                            CostModifierRandomMin = 0.00f,
+                            CostModifierRandomMax = 0.06f,
+                            ProjectionBuildDelayRandomMin = -0.04f,
+                            ProjectionBuildDelayRandomMax = 0.05f,
+                            ForbiddenComponents = new List<string> { "Superconductor" },
+                            ComponentPriceModifiers = new List<ComponentPriceModifierEntry>
+                            {
+                                new ComponentPriceModifierEntry { ComponentSubtypeId = "PowerCell", Multiplier = 1.08f },
+                                new ComponentPriceModifierEntry { ComponentSubtypeId = "Medical", Multiplier = 1.12f }
+                            }
+                        },
+                        new ZoneProfileVariantDefinition
+                        {
+                            VariantId = "BasicService",
+                            WeldingSpeed = 0.84f,
+                            ProjectionWeldingSpeed = 0.74f,
+                            CostModifier = 0.91f,
+                            AllowProjections = false,
+                            ProjectionBuildDelay = 1.35f,
+                            PlayerServiceName = "Civilian Service",
+                            PlayerRestrictionsSummary = "Advanced systems restricted",
+                            PlayerDetailsDescription = "Basic civilian repair berth intended for affordable maintenance. Advanced systems, heavy power and gravity hardware are restricted.",
+                            WeldingSpeedRandomMin = -0.05f,
+                            WeldingSpeedRandomMax = 0.05f,
+                            ProjectionWeldingSpeedRandomMin = -0.05f,
+                            ProjectionWeldingSpeedRandomMax = 0.04f,
+                            CostModifierRandomMin = -0.01f,
+                            CostModifierRandomMax = 0.05f,
+                            ProjectionBuildDelayRandomMin = -0.02f,
+                            ProjectionBuildDelayRandomMax = 0.10f,
+                            ForbiddenComponents = new List<string> { "GravityGenerator", "Reactor", "Superconductor" },
+                            ComponentPriceModifiers = new List<ComponentPriceModifierEntry>
+                            {
+                                new ComponentPriceModifierEntry { ComponentSubtypeId = "Detector", Multiplier = 1.10f },
+                                new ComponentPriceModifierEntry { ComponentSubtypeId = "RadioCommunication", Multiplier = 1.10f }
+                            }
                         }
                     }
                 },
@@ -173,64 +296,76 @@ namespace SafeZoneRepair
                             CostModifier = 1.15f,
                             AllowProjections = true,
                             ProjectionBuildDelay = 0.87f,
-                            ForbiddenComponents = new List<string> { "GravityGenerator" }
+                            PlayerServiceName = "Industrial Yard",
+                            PlayerRestrictionsSummary = "Gravity hardware limited",
+                            PlayerDetailsDescription = "Industrial yard focused on productive repair throughput and practical projection support. Exotic gravity hardware is restricted.",
+                            WeldingSpeedRandomMin = -0.03f,
+                            WeldingSpeedRandomMax = 0.09f,
+                            ProjectionWeldingSpeedRandomMin = -0.02f,
+                            ProjectionWeldingSpeedRandomMax = 0.12f,
+                            CostModifierRandomMin = 0.03f,
+                            CostModifierRandomMax = 0.10f,
+                            ProjectionBuildDelayRandomMin = -0.06f,
+                            ProjectionBuildDelayRandomMax = 0.04f,
+                            ForbiddenComponents = new List<string> { "GravityGenerator" },
+                            ComponentPriceModifiers = new List<ComponentPriceModifierEntry>
+                            {
+                                new ComponentPriceModifierEntry { ComponentSubtypeId = "Motor", Multiplier = 0.95f },
+                                new ComponentPriceModifierEntry { ComponentSubtypeId = "MetalGrid", Multiplier = 0.95f },
+                                new ComponentPriceModifierEntry { ComponentSubtypeId = "Computer", Multiplier = 0.97f }
+                            }
                         },
                         new ZoneProfileVariantDefinition
                         {
                             VariantId = "FastExpensive",
-                            WeldingSpeed = 1.5f,
+                            WeldingSpeed = 1.50f,
                             ProjectionWeldingSpeed = 1.45f,
-                            CostModifier = 1.6f,
+                            CostModifier = 1.60f,
                             AllowProjections = true,
-                            ProjectionBuildDelay = 0.7f,
-                            ForbiddenComponents = new List<string>()
+                            ProjectionBuildDelay = 0.70f,
+                            PlayerServiceName = "Industrial Yard",
+                            PlayerRestrictionsSummary = "High-throughput service at premium rates",
+                            PlayerDetailsDescription = "Express industrial repair with strong projection support and premium pricing for priority turnaround.",
+                            WeldingSpeedRandomMin = 0.00f,
+                            WeldingSpeedRandomMax = 0.12f,
+                            ProjectionWeldingSpeedRandomMin = 0.02f,
+                            ProjectionWeldingSpeedRandomMax = 0.15f,
+                            CostModifierRandomMin = 0.06f,
+                            CostModifierRandomMax = 0.16f,
+                            ProjectionBuildDelayRandomMin = -0.08f,
+                            ProjectionBuildDelayRandomMax = 0.03f,
+                            ForbiddenComponents = new List<string>(),
+                            ComponentPriceModifiers = new List<ComponentPriceModifierEntry>
+                            {
+                                new ComponentPriceModifierEntry { ComponentSubtypeId = "PowerCell", Multiplier = 1.15f },
+                                new ComponentPriceModifierEntry { ComponentSubtypeId = "Superconductor", Multiplier = 1.20f }
+                            }
                         },
                         new ZoneProfileVariantDefinition
                         {
                             VariantId = "ProjectionFriendly",
-                            WeldingSpeed = 1.05f,
-                            ProjectionWeldingSpeed = 1.5f,
-                            CostModifier = 1.35f,
+                            WeldingSpeed = 1.06f,
+                            ProjectionWeldingSpeed = 1.48f,
+                            CostModifier = 1.34f,
                             AllowProjections = true,
-                            ProjectionBuildDelay = 0.65f,
-                            ForbiddenComponents = new List<string> { "Medical" }
-                        }
-                    }
-                },
-                new ZoneGenerationProfileDefinition
-                {
-                    ProfileId = ZoneProfileIds.Civilian,
-                    Variants = new List<ZoneProfileVariantDefinition>
-                    {
-                        new ZoneProfileVariantDefinition
-                        {
-                            VariantId = "Affordable",
-                            WeldingSpeed = 0.9f,
-                            ProjectionWeldingSpeed = 0.85f,
-                            CostModifier = 0.95f,
-                            AllowProjections = false,
-                            ProjectionBuildDelay = 1.18f,
-                            ForbiddenComponents = new List<string> { "Superconductor", "GravityGenerator" }
-                        },
-                        new ZoneProfileVariantDefinition
-                        {
-                            VariantId = "Reliable",
-                            WeldingSpeed = 1.0f,
-                            ProjectionWeldingSpeed = 1.0f,
-                            CostModifier = 1.05f,
-                            AllowProjections = true,
-                            ProjectionBuildDelay = 1.0f,
-                            ForbiddenComponents = new List<string> { "Superconductor" }
-                        },
-                        new ZoneProfileVariantDefinition
-                        {
-                            VariantId = "BasicService",
-                            WeldingSpeed = 0.85f,
-                            ProjectionWeldingSpeed = 0.75f,
-                            CostModifier = 0.9f,
-                            AllowProjections = false,
-                            ProjectionBuildDelay = 1.33f,
-                            ForbiddenComponents = new List<string> { "GravityGenerator", "Reactor", "Superconductor" }
+                            ProjectionBuildDelay = 0.64f,
+                            PlayerServiceName = "Industrial Yard",
+                            PlayerRestrictionsSummary = "Medical systems limited; strong projection support",
+                            PlayerDetailsDescription = "Projection-focused industrial service with rapid construction throughput and moderate premium pricing.",
+                            WeldingSpeedRandomMin = -0.02f,
+                            WeldingSpeedRandomMax = 0.08f,
+                            ProjectionWeldingSpeedRandomMin = 0.04f,
+                            ProjectionWeldingSpeedRandomMax = 0.16f,
+                            CostModifierRandomMin = 0.03f,
+                            CostModifierRandomMax = 0.11f,
+                            ProjectionBuildDelayRandomMin = -0.10f,
+                            ProjectionBuildDelayRandomMax = 0.02f,
+                            ForbiddenComponents = new List<string> { "Medical" },
+                            ComponentPriceModifiers = new List<ComponentPriceModifierEntry>
+                            {
+                                new ComponentPriceModifierEntry { ComponentSubtypeId = "Construction", Multiplier = 0.96f },
+                                new ComponentPriceModifierEntry { ComponentSubtypeId = "SmallTube", Multiplier = 0.96f }
+                            }
                         }
                     }
                 },
@@ -242,32 +377,80 @@ namespace SafeZoneRepair
                         new ZoneProfileVariantDefinition
                         {
                             VariantId = "RapidService",
-                            WeldingSpeed = 1.4f,
+                            WeldingSpeed = 1.40f,
                             ProjectionWeldingSpeed = 1.15f,
                             CostModifier = 1.55f,
                             AllowProjections = false,
                             ProjectionBuildDelay = 0.87f,
-                            ForbiddenComponents = new List<string> { "Medical" }
+                            PlayerServiceName = "Military Service",
+                            PlayerRestrictionsSummary = "Medical systems restricted",
+                            PlayerDetailsDescription = "Rapid combat-readiness repairs with priority on structural and systems recovery. Civilian medical systems are not serviced here.",
+                            WeldingSpeedRandomMin = 0.00f,
+                            WeldingSpeedRandomMax = 0.10f,
+                            ProjectionWeldingSpeedRandomMin = -0.02f,
+                            ProjectionWeldingSpeedRandomMax = 0.08f,
+                            CostModifierRandomMin = 0.04f,
+                            CostModifierRandomMax = 0.12f,
+                            ProjectionBuildDelayRandomMin = -0.06f,
+                            ProjectionBuildDelayRandomMax = 0.04f,
+                            ForbiddenComponents = new List<string> { "Medical" },
+                            ComponentPriceModifiers = new List<ComponentPriceModifierEntry>
+                            {
+                                new ComponentPriceModifierEntry { ComponentSubtypeId = "Thruster", Multiplier = 1.08f },
+                                new ComponentPriceModifierEntry { ComponentSubtypeId = "Reactor", Multiplier = 1.08f }
+                            }
                         },
                         new ZoneProfileVariantDefinition
                         {
                             VariantId = "RestrictedTech",
-                            WeldingSpeed = 1.2f,
-                            ProjectionWeldingSpeed = 1.0f,
-                            CostModifier = 1.3f,
+                            WeldingSpeed = 1.20f,
+                            ProjectionWeldingSpeed = 1.00f,
+                            CostModifier = 1.30f,
                             AllowProjections = false,
-                            ProjectionBuildDelay = 1.0f,
-                            ForbiddenComponents = new List<string> { "Medical", "GravityGenerator" }
+                            ProjectionBuildDelay = 1.00f,
+                            PlayerServiceName = "Military Service",
+                            PlayerRestrictionsSummary = "Medical and gravity systems restricted",
+                            PlayerDetailsDescription = "Controlled military maintenance service with moderate throughput and tighter subsystem restrictions.",
+                            WeldingSpeedRandomMin = -0.02f,
+                            WeldingSpeedRandomMax = 0.08f,
+                            ProjectionWeldingSpeedRandomMin = -0.03f,
+                            ProjectionWeldingSpeedRandomMax = 0.06f,
+                            CostModifierRandomMin = 0.02f,
+                            CostModifierRandomMax = 0.08f,
+                            ProjectionBuildDelayRandomMin = -0.04f,
+                            ProjectionBuildDelayRandomMax = 0.06f,
+                            ForbiddenComponents = new List<string> { "Medical", "GravityGenerator" },
+                            ComponentPriceModifiers = new List<ComponentPriceModifierEntry>
+                            {
+                                new ComponentPriceModifierEntry { ComponentSubtypeId = "Detector", Multiplier = 1.10f },
+                                new ComponentPriceModifierEntry { ComponentSubtypeId = "RadioCommunication", Multiplier = 1.10f }
+                            }
                         },
                         new ZoneProfileVariantDefinition
                         {
                             VariantId = "SecureExpensive",
                             WeldingSpeed = 1.25f,
-                            ProjectionWeldingSpeed = 1.1f,
-                            CostModifier = 1.7f,
+                            ProjectionWeldingSpeed = 1.10f,
+                            CostModifier = 1.70f,
                             AllowProjections = true,
-                            ProjectionBuildDelay = 0.9f,
-                            ForbiddenComponents = new List<string> { "Medical" }
+                            ProjectionBuildDelay = 0.90f,
+                            PlayerServiceName = "Military Service",
+                            PlayerRestrictionsSummary = "Secure service with premium military pricing",
+                            PlayerDetailsDescription = "Secure military dock service with projection support for approved hull work and high pricing for restricted access.",
+                            WeldingSpeedRandomMin = -0.01f,
+                            WeldingSpeedRandomMax = 0.08f,
+                            ProjectionWeldingSpeedRandomMin = -0.02f,
+                            ProjectionWeldingSpeedRandomMax = 0.08f,
+                            CostModifierRandomMin = 0.06f,
+                            CostModifierRandomMax = 0.16f,
+                            ProjectionBuildDelayRandomMin = -0.05f,
+                            ProjectionBuildDelayRandomMax = 0.04f,
+                            ForbiddenComponents = new List<string> { "Medical" },
+                            ComponentPriceModifiers = new List<ComponentPriceModifierEntry>
+                            {
+                                new ComponentPriceModifierEntry { ComponentSubtypeId = "PowerCell", Multiplier = 1.12f },
+                                new ComponentPriceModifierEntry { ComponentSubtypeId = "Explosives", Multiplier = 1.10f }
+                            }
                         }
                     }
                 },
@@ -279,32 +462,81 @@ namespace SafeZoneRepair
                         new ZoneProfileVariantDefinition
                         {
                             VariantId = "HighEnd",
-                            WeldingSpeed = 1.6f,
-                            ProjectionWeldingSpeed = 1.6f,
+                            WeldingSpeed = 1.60f,
+                            ProjectionWeldingSpeed = 1.60f,
                             CostModifier = 1.85f,
                             AllowProjections = true,
                             ProjectionBuildDelay = 0.63f,
-                            ForbiddenComponents = new List<string>()
+                            PlayerServiceName = "Premium Repair Yard",
+                            PlayerRestrictionsSummary = "Full-service premium support",
+                            PlayerDetailsDescription = "High-end repair yard with excellent throughput, rapid projection service and premium pricing.",
+                            WeldingSpeedRandomMin = 0.02f,
+                            WeldingSpeedRandomMax = 0.12f,
+                            ProjectionWeldingSpeedRandomMin = 0.04f,
+                            ProjectionWeldingSpeedRandomMax = 0.14f,
+                            CostModifierRandomMin = 0.08f,
+                            CostModifierRandomMax = 0.18f,
+                            ProjectionBuildDelayRandomMin = -0.10f,
+                            ProjectionBuildDelayRandomMax = 0.02f,
+                            ForbiddenComponents = new List<string>(),
+                            ComponentPriceModifiers = new List<ComponentPriceModifierEntry>
+                            {
+                                new ComponentPriceModifierEntry { ComponentSubtypeId = "Medical", Multiplier = 1.08f },
+                                new ComponentPriceModifierEntry { ComponentSubtypeId = "PowerCell", Multiplier = 1.10f }
+                            }
                         },
                         new ZoneProfileVariantDefinition
                         {
                             VariantId = "FullService",
                             WeldingSpeed = 1.45f,
-                            ProjectionWeldingSpeed = 1.5f,
-                            CostModifier = 1.7f,
+                            ProjectionWeldingSpeed = 1.50f,
+                            CostModifier = 1.70f,
                             AllowProjections = true,
                             ProjectionBuildDelay = 0.67f,
-                            ForbiddenComponents = new List<string>()
+                            PlayerServiceName = "Premium Repair Yard",
+                            PlayerRestrictionsSummary = "Extensive support with premium pricing",
+                            PlayerDetailsDescription = "Full-service premium dock for advanced repair, projection work and expensive high-tech maintenance.",
+                            WeldingSpeedRandomMin = 0.00f,
+                            WeldingSpeedRandomMax = 0.10f,
+                            ProjectionWeldingSpeedRandomMin = 0.02f,
+                            ProjectionWeldingSpeedRandomMax = 0.12f,
+                            CostModifierRandomMin = 0.06f,
+                            CostModifierRandomMax = 0.16f,
+                            ProjectionBuildDelayRandomMin = -0.08f,
+                            ProjectionBuildDelayRandomMax = 0.03f,
+                            ForbiddenComponents = new List<string>(),
+                            ComponentPriceModifiers = new List<ComponentPriceModifierEntry>
+                            {
+                                new ComponentPriceModifierEntry { ComponentSubtypeId = "Superconductor", Multiplier = 1.10f },
+                                new ComponentPriceModifierEntry { ComponentSubtypeId = "GravityGenerator", Multiplier = 1.10f }
+                            }
                         },
                         new ZoneProfileVariantDefinition
                         {
                             VariantId = "FastLuxury",
                             WeldingSpeed = 1.75f,
                             ProjectionWeldingSpeed = 1.35f,
-                            CostModifier = 2.0f,
+                            CostModifier = 2.00f,
                             AllowProjections = true,
                             ProjectionBuildDelay = 0.74f,
-                            ForbiddenComponents = new List<string>()
+                            PlayerServiceName = "Premium Repair Yard",
+                            PlayerRestrictionsSummary = "Priority turnaround at luxury rates",
+                            PlayerDetailsDescription = "Luxury express service optimized for rapid turnaround and high-end support with top-tier pricing.",
+                            WeldingSpeedRandomMin = 0.04f,
+                            WeldingSpeedRandomMax = 0.14f,
+                            ProjectionWeldingSpeedRandomMin = 0.00f,
+                            ProjectionWeldingSpeedRandomMax = 0.10f,
+                            CostModifierRandomMin = 0.10f,
+                            CostModifierRandomMax = 0.20f,
+                            ProjectionBuildDelayRandomMin = -0.06f,
+                            ProjectionBuildDelayRandomMax = 0.04f,
+                            ForbiddenComponents = new List<string>(),
+                            ComponentPriceModifiers = new List<ComponentPriceModifierEntry>
+                            {
+                                new ComponentPriceModifierEntry { ComponentSubtypeId = "Medical", Multiplier = 1.12f },
+                                new ComponentPriceModifierEntry { ComponentSubtypeId = "PowerCell", Multiplier = 1.15f },
+                                new ComponentPriceModifierEntry { ComponentSubtypeId = "Thruster", Multiplier = 1.10f }
+                            }
                         }
                     }
                 }
