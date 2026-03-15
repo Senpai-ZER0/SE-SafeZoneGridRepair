@@ -105,12 +105,14 @@ namespace SafeZoneRepair
         private static readonly MyKeys CockpitHudSuppressKey = MyKeys.N;
         private static readonly MyKeys AdminMenuKey = MyKeys.O;
         private static readonly MyKeys ForceRescanKey = MyKeys.L;
+        private static readonly MyKeys ZoneDetailsKey = MyKeys.M;
 
         private static bool _rhfBindsRegistered = false;
         private static bool _rhfTerminalPagesRegistered = false;
         private static IBindGroup _rhfBindGroup;
         private static IBind _hudToggleBind;
         private static IBind _repairToggleBind;
+        private static IBind _zoneDetailsBind;
         private static TerminalPageCategory _rhfTerminalCategory;
         private static RebindPage _rhfKeybindPage;
         private static TextPage _rhfOverviewPage;
@@ -1190,6 +1192,52 @@ namespace SafeZoneRepair
             }
         }
 
+        private void ShowZoneDetailsForLocalContext(IMyCubeGrid sourceGrid = null)
+        {
+            try
+            {
+                if (MyAPIGateway.Utilities == null || MyAPIGateway.Utilities.IsDedicated)
+                    return;
+
+                IMyCubeGrid grid = sourceGrid ?? GetLocalActionGrid();
+                MySafeZone zone = grid != null ? GetSafeZoneForGrid(grid) : null;
+
+                if (zone == null)
+                {
+                    var player = GetLocalPlayer();
+                    var character = player?.Character;
+                    if (character != null)
+                        zone = GetSafeZoneForPosition(character.GetPosition());
+                }
+
+                if (zone == null)
+                {
+                    MyAPIGateway.Utilities.ShowMessage("SZR", "No repair zone details available.");
+                    return;
+                }
+
+                SafeZoneConfig cfg;
+                if (!zoneConfigs.TryGetValue(zone.EntityId, out cfg) || cfg == null)
+                {
+                    MyAPIGateway.Utilities.ShowMessage("SZR", "Zone details are not available yet.");
+                    return;
+                }
+
+                string title = !string.IsNullOrWhiteSpace(cfg.PlayerServiceName) ? cfg.PlayerServiceName : GetPlayerFacingServiceName(cfg);
+                if (string.IsNullOrWhiteSpace(title))
+                    title = "Zone Service Details";
+
+                string zoneName = cfg.DisplayName ?? cfg.ZoneName ?? GetSafeZoneDefaultName(zone);
+                string details = BuildZoneDetailsText(cfg);
+
+                MyAPIGateway.Utilities.ShowMissionScreen("ZERO's SafeZone Repair", "Zone: " + zoneName, title, details);
+            }
+            catch (Exception ex)
+            {
+                LogError($"ShowZoneDetailsForLocalContext error: {ex}");
+            }
+        }
+
         private void EnsureRhfBindingsAndTerminal()
         {
             try
@@ -1203,6 +1251,7 @@ namespace SafeZoneRepair
 
                     RegisterOrGetBind("Toggle HUD", new ControlHandle[] { RichHudControls.Control, RichHudControls.J }, out _hudToggleBind);
                     RegisterOrGetBind("Toggle Repair", new ControlHandle[] { RichHudControls.Control, RichHudControls.R }, out _repairToggleBind);
+                    RegisterOrGetBind("Zone Details", new ControlHandle[] { RichHudControls.Control, RichHudControls.M }, out _zoneDetailsBind);
 
                     _rhfBindsRegistered = true;
                 }
@@ -1222,7 +1271,7 @@ namespace SafeZoneRepair
                     };
                     _rhfOverviewPage.HeaderText = new RichText("Safe Zone Repair");
                     _rhfOverviewPage.SubHeaderText = new RichText("RHF controls and bindable actions");
-                    _rhfOverviewPage.Text = new RichText("Ctrl+J toggles the repair HUD.\nCtrl+R toggles repair mode only while controlling a ship controller.\nCtrl+N hides or restores the cockpit HUD.\nCockpit toolbar actions remain available for HUD and repair mode.");
+                    _rhfOverviewPage.Text = new RichText("Ctrl+J toggles the repair HUD.\nCtrl+R toggles repair mode only while controlling a ship controller.\nCtrl+M opens zone details for the current service area.\nCtrl+N hides or restores the cockpit HUD.\nCockpit toolbar actions remain available for HUD and repair mode.");
 
                     _rhfKeybindPage = new RebindPage
                     {
@@ -1269,7 +1318,8 @@ namespace SafeZoneRepair
             return new[]
             {
                 new BindDefinition("Toggle HUD", new[] { "Control", "J" }),
-                new BindDefinition("Toggle Repair", new[] { "Control", "R" })
+                new BindDefinition("Toggle Repair", new[] { "Control", "R" }),
+                new BindDefinition("Zone Details", new[] { "Control", "M" })
             };
         }
 
@@ -1602,6 +1652,15 @@ namespace SafeZoneRepair
             return input != null && input.IsAnyCtrlKeyPressed() && input.IsNewKeyPressed(RepairToggleKey);
         }
 
+        private bool IsZoneDetailsHotkeyPressed()
+        {
+            if (_zoneDetailsBind != null)
+                return _zoneDetailsBind.IsNewPressed;
+
+            var input = MyAPIGateway.Input;
+            return input != null && input.IsAnyCtrlKeyPressed() && input.IsNewKeyPressed(ZoneDetailsKey);
+        }
+
         private void UpdateClientHotkeys()
         {
             try
@@ -1631,6 +1690,9 @@ namespace SafeZoneRepair
 
                 if (GetLocalControlledShipController() != null && IsRepairHotkeyPressed())
                     ToggleRepairForLocalContext();
+
+                if (IsZoneDetailsHotkeyPressed())
+                    ShowZoneDetailsForLocalContext();
 
                 if (GetLocalControlledShipController() != null && IsForceRescanHotkeyPressed())
                     ForceRescanForLocalContext();
@@ -3045,6 +3107,11 @@ namespace SafeZoneRepair
             if (player == null || grid == null)
                 return "Current repair: -";
 
+            SafeZoneConfig cfg = null;
+            var zone = GetSafeZoneForGrid(grid);
+            if (zone != null)
+                zoneConfigs.TryGetValue(zone.EntityId, out cfg);
+
             int ahead = 0;
             foreach (var queuedBlock in blocksRepairQueue)
             {
@@ -3079,17 +3146,22 @@ namespace SafeZoneRepair
                 return string.Format("Current repair: queued ({0} ahead) -> {1}", ahead, blockName);
             }
 
-            long estimate = GetEstimatedRepairCostForUi(player, true, grid, GetSafeZoneForGrid(grid), GetGridRepairSetting(grid));
+            long estimate = GetEstimatedRepairCostForUi(player, true, grid, zone, GetGridRepairSetting(grid));
             if (estimate > 0)
                 return "Current repair: queued / waiting for next block";
 
-            return "Current repair: -";
+            return BuildZoneServiceInfoText(cfg);
         }
 
         private string BuildRepairPhaseForUi(IMyPlayer player, IMyCubeGrid grid)
         {
             if (player == null || grid == null)
                 return "Repair phase: idle";
+
+            SafeZoneConfig cfg = null;
+            var zone = GetSafeZoneForGrid(grid);
+            if (zone != null)
+                zoneConfigs.TryGetValue(zone.EntityId, out cfg);
 
             int ahead = 0;
             foreach (var queuedBlock in blocksRepairQueue)
@@ -3138,14 +3210,14 @@ namespace SafeZoneRepair
                 return string.Format("Repair phase: queued ({0} ahead)", ahead);
             }
 
-            long estimate = GetEstimatedRepairCostForUi(player, true, grid, GetSafeZoneForGrid(grid), GetGridRepairSetting(grid));
+            long estimate = GetEstimatedRepairCostForUi(player, true, grid, zone, GetGridRepairSetting(grid));
             if (estimate > 0)
                 return "Repair phase: waiting";
 
-            return "Repair phase: idle";
+            return BuildZoneRestrictionsText(cfg);
         }
 
-        private string BuildCurrentScanTextForUi(IMyPlayer player, IMyCubeGrid grid)
+        private string BuildCurrentScanTextForUi(IMyPlayer player, IMyCubeGrid grid, SafeZoneConfig cfg)
         {
             if (player == null)
                 return "Current scan: -";
@@ -3160,6 +3232,186 @@ namespace SafeZoneRepair
             }
 
             return "Current scan: -";
+        }
+
+        private string BuildZoneServiceInfoText(SafeZoneConfig cfg)
+        {
+            string projections = GetPlayerFacingProjectionLabel(cfg);
+            string speed = GetPlayerFacingSpeedLabel(cfg);
+            string cost = GetPlayerFacingCostLabel(cfg);
+            return string.Format("Service info: Proj: {0} | Speed: {1} | Cost: {2}", projections, speed, cost);
+        }
+
+        private string BuildZoneRestrictionsText(SafeZoneConfig cfg)
+        {
+            return string.Format("Restrictions: {0}", GetPlayerFacingRestrictionsSummary(cfg));
+        }
+
+        private string BuildZoneServiceStatusText(string baseStatusText, SafeZoneConfig cfg)
+        {
+            string baseText = string.IsNullOrWhiteSpace(baseStatusText) ? "In repair zone" : baseStatusText.Trim();
+            string serviceName = GetPlayerFacingServiceName(cfg);
+            if (string.IsNullOrWhiteSpace(serviceName))
+                return baseText;
+            return string.Format("{0} | Service: {1}", baseText, serviceName);
+        }
+
+        private string GetPlayerFacingServiceName(SafeZoneConfig cfg)
+        {
+            if (!string.IsNullOrWhiteSpace(cfg?.PlayerServiceName))
+                return cfg.PlayerServiceName.Trim();
+
+            string profileId = cfg?.AssignedProfileId;
+            switch ((profileId ?? string.Empty).Trim())
+            {
+                case ZoneProfileIds.Industrial:
+                    return "Industrial Yard";
+                case ZoneProfileIds.Civilian:
+                    return "Civilian Service";
+                case ZoneProfileIds.Military:
+                    return "Military Service";
+                case ZoneProfileIds.Premium:
+                    return "Premium Repair Yard";
+                case ZoneProfileIds.Neutral:
+                default:
+                    return "General Service";
+            }
+        }
+
+        private string GetPlayerFacingProjectionLabel(SafeZoneConfig cfg)
+        {
+            return cfg != null && cfg.AllowProjections ? "Available" : "Unavailable";
+        }
+
+        private string GetPlayerFacingSpeedLabel(SafeZoneConfig cfg)
+        {
+            float speed = cfg?.WeldingSpeed ?? 1f;
+            if (speed < 0.95f)
+                return "Slow";
+            if (speed > 1.15f)
+                return "Fast";
+            return "Standard";
+        }
+
+        private string GetPlayerFacingCostLabel(SafeZoneConfig cfg)
+        {
+            float cost = cfg?.CostModifier ?? 1f;
+            if (cost < 0.95f)
+                return "Low";
+            if (cost > 1.2f)
+                return "High";
+            return "Medium";
+        }
+
+        private string GetPlayerFacingRestrictionsSummary(SafeZoneConfig cfg)
+        {
+            if (!string.IsNullOrWhiteSpace(cfg?.PlayerRestrictionsSummary))
+                return cfg.PlayerRestrictionsSummary.Trim();
+
+            if (cfg == null || cfg.ForbiddenComponents == null || cfg.ForbiddenComponents.Count == 0)
+                return "No major restrictions";
+
+            var forbidden = new HashSet<string>(cfg.ForbiddenComponents, StringComparer.OrdinalIgnoreCase);
+            bool hasPrototech = false;
+            bool onlyPrototech = true;
+            foreach (var component in forbidden)
+            {
+                if (string.IsNullOrWhiteSpace(component))
+                    continue;
+
+                bool isPrototech = component.IndexOf("Prototech", StringComparison.OrdinalIgnoreCase) >= 0;
+                if (isPrototech)
+                    hasPrototech = true;
+                else
+                    onlyPrototech = false;
+            }
+
+            if (hasPrototech && onlyPrototech)
+                return "Prototech parts blocked";
+
+            bool power = forbidden.Contains("Reactor") || forbidden.Contains("Superconductor") || forbidden.Contains("PowerCell");
+            bool gravity = forbidden.Contains("GravityGenerator");
+            bool medical = forbidden.Contains("Medical");
+            bool propulsion = forbidden.Contains("Thrust") || forbidden.Contains("Thruster") || forbidden.Contains("PrototechPropulsionUnit");
+
+            if (power && gravity)
+                return "Advanced power and gravity parts limited";
+            if (power)
+                return "Advanced power parts limited";
+            if (gravity)
+                return "Gravity parts limited";
+            if (medical)
+                return "Medical parts limited";
+            if (propulsion)
+                return "Propulsion parts limited";
+            if (forbidden.Count >= 5)
+                return "Advanced systems restricted";
+
+            return "Selected components limited";
+        }
+
+        private string GetPlayerFacingRestrictionsDetails(SafeZoneConfig cfg)
+        {
+            if (!string.IsNullOrWhiteSpace(cfg?.PlayerDetailsDescription))
+                return cfg.PlayerDetailsDescription.Trim();
+
+            if (cfg == null || cfg.ForbiddenComponents == null || cfg.ForbiddenComponents.Count == 0)
+                return "No major restrictions are configured for this zone.";
+
+            var components = new List<string>();
+            for (int i = 0; i < cfg.ForbiddenComponents.Count; i++)
+            {
+                string component = cfg.ForbiddenComponents[i];
+                if (string.IsNullOrWhiteSpace(component))
+                    continue;
+
+                components.Add(component.Trim());
+            }
+
+            if (components.Count == 0)
+                return "No major restrictions are configured for this zone.";
+
+            components.Sort(StringComparer.OrdinalIgnoreCase);
+            return "Restricted components: " + string.Join(", ", components);
+        }
+
+        private string BuildZoneDetailsText(SafeZoneConfig cfg)
+        {
+            if (cfg == null)
+                return "No zone details available.";
+
+            var sb = new StringBuilder();
+            sb.Append("Service: ").Append(GetPlayerFacingServiceName(cfg));
+            sb.Append("\nRepair: ").Append(cfg.Enabled ? "Enabled" : "Disabled");
+            sb.Append("\nProjections: ").Append(GetPlayerFacingProjectionLabel(cfg));
+            sb.Append("\nRepair speed: ").Append(GetPlayerFacingSpeedLabel(cfg));
+            sb.Append("\nCost level: ").Append(GetPlayerFacingCostLabel(cfg));
+
+            if (!string.IsNullOrWhiteSpace(cfg.AssignedProfileId))
+                sb.Append("\nProfile: ").Append(cfg.AssignedProfileId);
+
+            if (!string.IsNullOrWhiteSpace(cfg.AssignedVariantId))
+                sb.Append("\nVariant: ").Append(cfg.AssignedVariantId);
+
+            sb.Append("\n\nRestrictions:");
+            sb.Append("\n").Append(GetPlayerFacingRestrictionsSummary(cfg));
+            sb.Append("\n").Append(GetPlayerFacingRestrictionsDetails(cfg));
+
+            if (cfg.ComponentPriceModifiers != null && cfg.ComponentPriceModifiers.Count > 0)
+            {
+                sb.Append("\n\nPrice modifiers:");
+                for (int i = 0; i < cfg.ComponentPriceModifiers.Count; i++)
+                {
+                    var entry = cfg.ComponentPriceModifiers[i];
+                    if (entry == null || string.IsNullOrWhiteSpace(entry.ComponentSubtypeId))
+                        continue;
+
+                    sb.Append("\n- ").Append(entry.ComponentSubtypeId.Trim()).Append(": x").Append(entry.Multiplier.ToString("0.##"));
+                }
+            }
+
+            sb.Append("\n\nHotkey: Ctrl+M");
+            return sb.ToString();
         }
 
         private string TruncateHudBlockName(string text, int maxLength)
@@ -3184,6 +3436,7 @@ namespace SafeZoneRepair
             long estimatedRepairCost = GetEstimatedRepairCostForUi(player, inRepairZone, grid, zone, repairEnabled);
             string uiStatusText = string.IsNullOrWhiteSpace(statusText) ? (inRepairZone ? "In repair zone" : "Outside repair zone") : statusText;
             uiStatusText = AppendProjectionStatus(uiStatusText, grid, cfg);
+            uiStatusText = BuildZoneServiceStatusText(uiStatusText, cfg);
 
             var msg = new RepairUiStateMessage
             {
@@ -3197,7 +3450,7 @@ namespace SafeZoneRepair
                 EstimatedRepairCost = estimatedRepairCost,
                 CurrentRepairText = inRepairZone ? BuildCurrentRepairTextForUi(player, grid) : "Current repair: -",
                 RepairPhaseText = inRepairZone ? BuildRepairPhaseForUi(player, grid) : "Repair phase: idle",
-                CurrentScanText = inRepairZone ? BuildCurrentScanTextForUi(player, grid) : "Current scan: -"
+                CurrentScanText = inRepairZone ? BuildCurrentScanTextForUi(player, grid, cfg) : "Current scan: -"
             };
 
             byte[] bytes = MyAPIGateway.Utilities.SerializeToBinary(msg);

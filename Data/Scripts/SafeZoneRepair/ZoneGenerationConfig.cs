@@ -9,6 +9,12 @@ namespace SafeZoneRepair
         public string ProfileId { get; set; }
     }
 
+    public class ZoneGenerationProfileDefinition
+    {
+        public string ProfileId { get; set; }
+        public List<ZoneProfileVariantDefinition> Variants { get; set; } = new List<ZoneProfileVariantDefinition>();
+    }
+
     public class ZoneGenerationConfig
     {
         public bool Enabled { get; set; } = true;
@@ -16,8 +22,10 @@ namespace SafeZoneRepair
         public bool ApplyLegacyMetadataFallback { get; set; } = true;
         public bool AllowVariantJitter { get; set; } = true;
         public float VariantJitterPercent { get; set; } = 0.08f;
+        public bool UseBuiltInProfilesAsFallback { get; set; } = true;
 
         public List<ZoneGenerationTagAliasEntry> TagAliases { get; set; } = new List<ZoneGenerationTagAliasEntry>();
+        public List<ZoneGenerationProfileDefinition> CustomProfiles { get; set; } = new List<ZoneGenerationProfileDefinition>();
         public List<string> ProtectedCoreComponents { get; set; } = new List<string>();
         public List<string> GlobalGenerationBlacklist { get; set; } = new List<string>();
         public List<string> GlobalGenerationLimitedList { get; set; } = new List<string>();
@@ -31,6 +39,7 @@ namespace SafeZoneRepair
                 ApplyLegacyMetadataFallback = true,
                 AllowVariantJitter = true,
                 VariantJitterPercent = 0.08f,
+                UseBuiltInProfilesAsFallback = true,
                 TagAliases = new List<ZoneGenerationTagAliasEntry>
                 {
                     new ZoneGenerationTagAliasEntry { Tag = "[NEUT]", ProfileId = ZoneProfileIds.Neutral },
@@ -45,6 +54,7 @@ namespace SafeZoneRepair
                     new ZoneGenerationTagAliasEntry { Tag = "[PREM]", ProfileId = ZoneProfileIds.Premium },
                     new ZoneGenerationTagAliasEntry { Tag = "[PREMIUM]", ProfileId = ZoneProfileIds.Premium }
                 },
+                CustomProfiles = ZoneProfileResolver.CreateBuiltInProfileDefinitions(),
                 ProtectedCoreComponents = new List<string>
                 {
                     "SteelPlate",

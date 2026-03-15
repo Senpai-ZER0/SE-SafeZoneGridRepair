@@ -49,5 +49,9 @@ namespace SafeZoneRepair
         [ProtoMember(16)] public string AssignmentSource { get; set; }
         [ProtoMember(17)] public int VariantSeed { get; set; } = 0;
         [ProtoMember(18)] public bool WasManuallyEdited { get; set; } = false;
+        [ProtoMember(19)] public string ProfileSourceName { get; set; }
+        [ProtoMember(20)] public string PlayerServiceName { get; set; }
+        [ProtoMember(21)] public string PlayerRestrictionsSummary { get; set; }
+        [ProtoMember(22)] public string PlayerDetailsDescription { get; set; }
     }
 }
