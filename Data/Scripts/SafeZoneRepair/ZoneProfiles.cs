@@ -31,6 +31,14 @@ namespace SafeZoneRepair
         public string PlayerServiceName { get; set; }
         public string PlayerRestrictionsSummary { get; set; }
         public string PlayerDetailsDescription { get; set; }
+        public float? WeldingSpeedRandomMin { get; set; }
+        public float? WeldingSpeedRandomMax { get; set; }
+        public float? ProjectionWeldingSpeedRandomMin { get; set; }
+        public float? ProjectionWeldingSpeedRandomMax { get; set; }
+        public float? CostModifierRandomMin { get; set; }
+        public float? CostModifierRandomMax { get; set; }
+        public float? ProjectionBuildDelayRandomMin { get; set; }
+        public float? ProjectionBuildDelayRandomMax { get; set; }
         public List<string> ForbiddenComponents { get; set; } = new List<string>();
         public List<ComponentPriceModifierEntry> ComponentPriceModifiers { get; set; } = new List<ComponentPriceModifierEntry>();
     }
@@ -50,6 +58,14 @@ namespace SafeZoneRepair
         public string PlayerServiceName { get; set; }
         public string PlayerRestrictionsSummary { get; set; }
         public string PlayerDetailsDescription { get; set; }
+        public float? WeldingSpeedRandomMin { get; set; }
+        public float? WeldingSpeedRandomMax { get; set; }
+        public float? ProjectionWeldingSpeedRandomMin { get; set; }
+        public float? ProjectionWeldingSpeedRandomMax { get; set; }
+        public float? CostModifierRandomMin { get; set; }
+        public float? CostModifierRandomMax { get; set; }
+        public float? ProjectionBuildDelayRandomMin { get; set; }
+        public float? ProjectionBuildDelayRandomMax { get; set; }
         public List<string> ForbiddenComponents { get; set; } = new List<string>();
         public List<ComponentPriceModifierEntry> ComponentPriceModifiers { get; set; } = new List<ComponentPriceModifierEntry>();
     }
@@ -96,8 +112,8 @@ namespace SafeZoneRepair
                 ComponentPriceModifiers = CloneModifiers(variant.ComponentPriceModifiers)
             };
 
-            if (config.AllowVariantJitter && config.VariantJitterPercent > 0f)
-                ApplyJitter(result, seed, config.VariantJitterPercent);
+            if (config.AllowVariantJitter)
+                ApplyJitter(result, variant, config, seed);
 
             ApplyGlobalGenerationRules(result, config);
             return result;
@@ -315,6 +331,17 @@ namespace SafeZoneRepair
                     CostModifier = variant.CostModifier,
                     AllowProjections = variant.AllowProjections,
                     ProjectionBuildDelay = variant.ProjectionBuildDelay,
+                    PlayerServiceName = variant.PlayerServiceName,
+                    PlayerRestrictionsSummary = variant.PlayerRestrictionsSummary,
+                    PlayerDetailsDescription = variant.PlayerDetailsDescription,
+                    WeldingSpeedRandomMin = variant.WeldingSpeedRandomMin,
+                    WeldingSpeedRandomMax = variant.WeldingSpeedRandomMax,
+                    ProjectionWeldingSpeedRandomMin = variant.ProjectionWeldingSpeedRandomMin,
+                    ProjectionWeldingSpeedRandomMax = variant.ProjectionWeldingSpeedRandomMax,
+                    CostModifierRandomMin = variant.CostModifierRandomMin,
+                    CostModifierRandomMax = variant.CostModifierRandomMax,
+                    ProjectionBuildDelayRandomMin = variant.ProjectionBuildDelayRandomMin,
+                    ProjectionBuildDelayRandomMax = variant.ProjectionBuildDelayRandomMax,
                     ForbiddenComponents = CloneComponents(variant.ForbiddenComponents),
                     ComponentPriceModifiers = CloneModifiers(variant.ComponentPriceModifiers)
                 });
@@ -359,18 +386,78 @@ namespace SafeZoneRepair
             }
         }
 
-        private static void ApplyJitter(GeneratedZoneProfileResult result, int seed, float percent)
+        private static void ApplyJitter(GeneratedZoneProfileResult result, ZoneProfileVariantDefinition variant, ZoneGenerationConfig config, int seed)
         {
-            result.WeldingSpeed = ClampJitterValue(result.WeldingSpeed, 0.1f, 100f, seed ^ 0x11A37, percent);
-            result.ProjectionWeldingSpeed = ClampJitterValue(result.ProjectionWeldingSpeed, 0.1f, 100f, seed ^ 0x34BCD, percent);
-            result.CostModifier = ClampJitterValue(result.CostModifier, 0f, 100f, seed ^ 0x52F11, percent);
-            result.ProjectionBuildDelay = ClampJitterValue(result.ProjectionBuildDelay, 0.1f, 100f, seed ^ 0x77E29, percent);
+            if (result == null || config == null)
+                return;
+
+            float weldingMin, weldingMax;
+            ResolveRandomWindow(variant == null ? null : variant.WeldingSpeedRandomMin, variant == null ? null : variant.WeldingSpeedRandomMax, config.DefaultWeldingSpeedRandomMin, config.DefaultWeldingSpeedRandomMax, config.VariantJitterPercent, out weldingMin, out weldingMax);
+
+            float projectionWeldingMin, projectionWeldingMax;
+            ResolveRandomWindow(variant == null ? null : variant.ProjectionWeldingSpeedRandomMin, variant == null ? null : variant.ProjectionWeldingSpeedRandomMax, config.DefaultProjectionWeldingSpeedRandomMin, config.DefaultProjectionWeldingSpeedRandomMax, config.VariantJitterPercent, out projectionWeldingMin, out projectionWeldingMax);
+
+            float costMin, costMax;
+            ResolveRandomWindow(variant == null ? null : variant.CostModifierRandomMin, variant == null ? null : variant.CostModifierRandomMax, config.DefaultCostModifierRandomMin, config.DefaultCostModifierRandomMax, config.VariantJitterPercent, out costMin, out costMax);
+
+            float buildDelayMin, buildDelayMax;
+            ResolveRandomWindow(variant == null ? null : variant.ProjectionBuildDelayRandomMin, variant == null ? null : variant.ProjectionBuildDelayRandomMax, config.DefaultProjectionBuildDelayRandomMin, config.DefaultProjectionBuildDelayRandomMax, config.VariantJitterPercent, out buildDelayMin, out buildDelayMax);
+
+            result.WeldingSpeed = ClampJitterValue(result.WeldingSpeed, 0.1f, 100f, seed ^ 0x11A37, weldingMin, weldingMax);
+            result.ProjectionWeldingSpeed = ClampJitterValue(result.ProjectionWeldingSpeed, 0.1f, 100f, seed ^ 0x34BCD, projectionWeldingMin, projectionWeldingMax);
+            result.CostModifier = ClampJitterValue(result.CostModifier, 0f, 100f, seed ^ 0x52F11, costMin, costMax);
+            result.ProjectionBuildDelay = ClampJitterValue(result.ProjectionBuildDelay, 0.1f, 100f, seed ^ 0x77E29, buildDelayMin, buildDelayMax);
         }
 
-        private static float ClampJitterValue(float value, float min, float max, int localSeed, float percent)
+        private static void ResolveRandomWindow(float? overrideMin, float? overrideMax, float defaultMin, float defaultMax, float legacyPercent, out float resolvedMin, out float resolvedMax)
         {
+            float min = overrideMin ?? defaultMin;
+            float max = overrideMax ?? defaultMax;
+
+            bool useLegacyFallback = !overrideMin.HasValue && !overrideMax.HasValue && min == 0f && max == 0f && legacyPercent > 0f;
+            if (useLegacyFallback)
+            {
+                min = -legacyPercent;
+                max = legacyPercent;
+            }
+
+            if (min > max)
+            {
+                float tmp = min;
+                min = max;
+                max = tmp;
+            }
+
+            min = ClampWindowValue(min);
+            max = ClampWindowValue(max);
+
+            if (min > max)
+            {
+                float tmp = min;
+                min = max;
+                max = tmp;
+            }
+
+            resolvedMin = min;
+            resolvedMax = max;
+        }
+
+        private static float ClampWindowValue(float value)
+        {
+            if (value < -0.95f)
+                return -0.95f;
+            if (value > 5f)
+                return 5f;
+            return value;
+        }
+
+        private static float ClampJitterValue(float value, float min, float max, int localSeed, float randomMin, float randomMax)
+        {
+            if (randomMin == 0f && randomMax == 0f)
+                return value;
+
             var random = new Random(localSeed);
-            double factor = 1d + ((random.NextDouble() * 2d - 1d) * percent);
+            double factor = 1d + randomMin + ((randomMax - randomMin) * random.NextDouble());
             float jittered = (float)Math.Round(value * factor, 2);
             if (jittered < min)
                 jittered = min;

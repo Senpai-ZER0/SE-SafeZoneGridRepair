@@ -22,6 +22,14 @@ namespace SafeZoneRepair
         public bool ApplyLegacyMetadataFallback { get; set; } = true;
         public bool AllowVariantJitter { get; set; } = true;
         public float VariantJitterPercent { get; set; } = 0.08f;
+        public float DefaultWeldingSpeedRandomMin { get; set; } = -0.08f;
+        public float DefaultWeldingSpeedRandomMax { get; set; } = 0.08f;
+        public float DefaultProjectionWeldingSpeedRandomMin { get; set; } = -0.08f;
+        public float DefaultProjectionWeldingSpeedRandomMax { get; set; } = 0.08f;
+        public float DefaultCostModifierRandomMin { get; set; } = -0.08f;
+        public float DefaultCostModifierRandomMax { get; set; } = 0.08f;
+        public float DefaultProjectionBuildDelayRandomMin { get; set; } = -0.08f;
+        public float DefaultProjectionBuildDelayRandomMax { get; set; } = 0.08f;
         public bool UseBuiltInProfilesAsFallback { get; set; } = true;
 
         public List<ZoneGenerationTagAliasEntry> TagAliases { get; set; } = new List<ZoneGenerationTagAliasEntry>();
@@ -39,6 +47,14 @@ namespace SafeZoneRepair
                 ApplyLegacyMetadataFallback = true,
                 AllowVariantJitter = true,
                 VariantJitterPercent = 0.08f,
+                DefaultWeldingSpeedRandomMin = -0.08f,
+                DefaultWeldingSpeedRandomMax = 0.08f,
+                DefaultProjectionWeldingSpeedRandomMin = -0.08f,
+                DefaultProjectionWeldingSpeedRandomMax = 0.08f,
+                DefaultCostModifierRandomMin = -0.08f,
+                DefaultCostModifierRandomMax = 0.08f,
+                DefaultProjectionBuildDelayRandomMin = -0.08f,
+                DefaultProjectionBuildDelayRandomMax = 0.08f,
                 UseBuiltInProfilesAsFallback = true,
                 TagAliases = new List<ZoneGenerationTagAliasEntry>
                 {

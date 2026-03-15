@@ -116,6 +116,42 @@ namespace SafeZoneRepair
                 changed = true;
             }
 
+            var defaultWeldingSpeedRandomMin = cfg.DefaultWeldingSpeedRandomMin;
+            var defaultWeldingSpeedRandomMax = cfg.DefaultWeldingSpeedRandomMax;
+            if (NormalizeRandomWindow(ref defaultWeldingSpeedRandomMin, ref defaultWeldingSpeedRandomMax, cfg.VariantJitterPercent))
+            {
+                cfg.DefaultWeldingSpeedRandomMin = defaultWeldingSpeedRandomMin;
+                cfg.DefaultWeldingSpeedRandomMax = defaultWeldingSpeedRandomMax;
+                changed = true;
+            }
+
+            var defaultProjectionWeldingSpeedRandomMin = cfg.DefaultProjectionWeldingSpeedRandomMin;
+            var defaultProjectionWeldingSpeedRandomMax = cfg.DefaultProjectionWeldingSpeedRandomMax;
+            if (NormalizeRandomWindow(ref defaultProjectionWeldingSpeedRandomMin, ref defaultProjectionWeldingSpeedRandomMax, cfg.VariantJitterPercent))
+            {
+                cfg.DefaultProjectionWeldingSpeedRandomMin = defaultProjectionWeldingSpeedRandomMin;
+                cfg.DefaultProjectionWeldingSpeedRandomMax = defaultProjectionWeldingSpeedRandomMax;
+                changed = true;
+            }
+
+            var defaultCostModifierRandomMin = cfg.DefaultCostModifierRandomMin;
+            var defaultCostModifierRandomMax = cfg.DefaultCostModifierRandomMax;
+            if (NormalizeRandomWindow(ref defaultCostModifierRandomMin, ref defaultCostModifierRandomMax, cfg.VariantJitterPercent))
+            {
+                cfg.DefaultCostModifierRandomMin = defaultCostModifierRandomMin;
+                cfg.DefaultCostModifierRandomMax = defaultCostModifierRandomMax;
+                changed = true;
+            }
+
+            var defaultProjectionBuildDelayRandomMin = cfg.DefaultProjectionBuildDelayRandomMin;
+            var defaultProjectionBuildDelayRandomMax = cfg.DefaultProjectionBuildDelayRandomMax;
+            if (NormalizeRandomWindow(ref defaultProjectionBuildDelayRandomMin, ref defaultProjectionBuildDelayRandomMax, cfg.VariantJitterPercent))
+            {
+                cfg.DefaultProjectionBuildDelayRandomMin = defaultProjectionBuildDelayRandomMin;
+                cfg.DefaultProjectionBuildDelayRandomMax = defaultProjectionBuildDelayRandomMax;
+                changed = true;
+            }
+
             if (cfg.CustomProfiles != null)
             {
                 for (int i = 0; i < cfg.CustomProfiles.Count; i++)
@@ -148,6 +184,42 @@ namespace SafeZoneRepair
                             changed = true;
                         }
 
+                        var weldingSpeedRandomMin = variant.WeldingSpeedRandomMin;
+                        var weldingSpeedRandomMax = variant.WeldingSpeedRandomMax;
+                        if (NormalizeNullableRandomWindow(ref weldingSpeedRandomMin, ref weldingSpeedRandomMax))
+                        {
+                            variant.WeldingSpeedRandomMin = weldingSpeedRandomMin;
+                            variant.WeldingSpeedRandomMax = weldingSpeedRandomMax;
+                            changed = true;
+                        }
+
+                        var projectionWeldingSpeedRandomMin = variant.ProjectionWeldingSpeedRandomMin;
+                        var projectionWeldingSpeedRandomMax = variant.ProjectionWeldingSpeedRandomMax;
+                        if (NormalizeNullableRandomWindow(ref projectionWeldingSpeedRandomMin, ref projectionWeldingSpeedRandomMax))
+                        {
+                            variant.ProjectionWeldingSpeedRandomMin = projectionWeldingSpeedRandomMin;
+                            variant.ProjectionWeldingSpeedRandomMax = projectionWeldingSpeedRandomMax;
+                            changed = true;
+                        }
+
+                        var costModifierRandomMin = variant.CostModifierRandomMin;
+                        var costModifierRandomMax = variant.CostModifierRandomMax;
+                        if (NormalizeNullableRandomWindow(ref costModifierRandomMin, ref costModifierRandomMax))
+                        {
+                            variant.CostModifierRandomMin = costModifierRandomMin;
+                            variant.CostModifierRandomMax = costModifierRandomMax;
+                            changed = true;
+                        }
+
+                        var projectionBuildDelayRandomMin = variant.ProjectionBuildDelayRandomMin;
+                        var projectionBuildDelayRandomMax = variant.ProjectionBuildDelayRandomMax;
+                        if (NormalizeNullableRandomWindow(ref projectionBuildDelayRandomMin, ref projectionBuildDelayRandomMax))
+                        {
+                            variant.ProjectionBuildDelayRandomMin = projectionBuildDelayRandomMin;
+                            variant.ProjectionBuildDelayRandomMax = projectionBuildDelayRandomMax;
+                            changed = true;
+                        }
+
                         if (string.IsNullOrWhiteSpace(variant.PlayerServiceName))
                             variant.PlayerServiceName = null;
 
@@ -158,6 +230,87 @@ namespace SafeZoneRepair
                             variant.PlayerDetailsDescription = null;
                     }
                 }
+            }
+
+            return changed;
+        }
+
+        private static bool NormalizeRandomWindow(ref float min, ref float max, float legacyPercent)
+        {
+            bool changed = false;
+
+            if (min == 0f && max == 0f && legacyPercent > 0f)
+            {
+                min = -legacyPercent;
+                max = legacyPercent;
+                changed = true;
+            }
+
+            if (min < -0.95f)
+            {
+                min = -0.95f;
+                changed = true;
+            }
+            else if (min > 5f)
+            {
+                min = 5f;
+                changed = true;
+            }
+
+            if (max < -0.95f)
+            {
+                max = -0.95f;
+                changed = true;
+            }
+            else if (max > 5f)
+            {
+                max = 5f;
+                changed = true;
+            }
+
+            if (min > max)
+            {
+                float tmp = min;
+                min = max;
+                max = tmp;
+                changed = true;
+            }
+
+            return changed;
+        }
+
+        private static bool NormalizeNullableRandomWindow(ref float? min, ref float? max)
+        {
+            bool changed = false;
+
+            if (min.HasValue)
+            {
+                float value = min.Value;
+                float clamped = value < -0.95f ? -0.95f : (value > 5f ? 5f : value);
+                if (Math.Abs(clamped - value) > 0.0001f)
+                {
+                    min = clamped;
+                    changed = true;
+                }
+            }
+
+            if (max.HasValue)
+            {
+                float value = max.Value;
+                float clamped = value < -0.95f ? -0.95f : (value > 5f ? 5f : value);
+                if (Math.Abs(clamped - value) > 0.0001f)
+                {
+                    max = clamped;
+                    changed = true;
+                }
+            }
+
+            if (min.HasValue && max.HasValue && min.Value > max.Value)
+            {
+                float tmp = min.Value;
+                min = max.Value;
+                max = tmp;
+                changed = true;
             }
 
             return changed;
