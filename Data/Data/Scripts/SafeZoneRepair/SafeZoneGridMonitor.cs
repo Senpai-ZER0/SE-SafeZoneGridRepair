@@ -256,8 +256,7 @@ namespace SafeZoneRepair
                     using (var reader = MyAPIGateway.Utilities.ReadFileInWorldStorage(ConfigFileName, typeof(SafeZoneGridMonitor)))
                     {
                         string xml = reader.ReadToEnd();
-                        var storage = DeserializeZoneConfigCollection(xml);
-                        var list = storage != null ? storage.Zones : null;
+                        var list = MyAPIGateway.Utilities.SerializeFromXML<List<SafeZoneConfig>>(xml);
                         if (list != null)
                         {
                             bool configDirty = false;
@@ -573,39 +572,6 @@ namespace SafeZoneRepair
             SaveConfig(list);
         }
 
-
-        private SafeZoneConfigCollection DeserializeZoneConfigCollection(string xml)
-        {
-            if (string.IsNullOrWhiteSpace(xml))
-                return new SafeZoneConfigCollection();
-
-            try
-            {
-                var storage = MyAPIGateway.Utilities.SerializeFromXML<SafeZoneConfigCollection>(xml);
-                if (storage != null)
-                    return storage;
-            }
-            catch (Exception ex)
-            {
-                PersistenceDebugLog($"DeserializeZoneConfigCollection wrapper format failed: {ex.Message}");
-            }
-
-            try
-            {
-                var legacyList = MyAPIGateway.Utilities.SerializeFromXML<List<SafeZoneConfig>>(xml);
-                return new SafeZoneConfigCollection
-                {
-                    Zones = legacyList ?? new List<SafeZoneConfig>()
-                };
-            }
-            catch (Exception ex)
-            {
-                PersistenceDebugLog($"DeserializeZoneConfigCollection legacy list format failed: {ex.Message}");
-            }
-
-            return new SafeZoneConfigCollection();
-        }
-
         private void SaveConfig(List<SafeZoneConfig> list)
         {
             try
@@ -622,14 +588,9 @@ namespace SafeZoneRepair
 
                 PersistenceDebugLog($"SaveConfig start: file={ConfigFileName}, count={saveList.Count}");
 
-                var storage = new SafeZoneConfigCollection
-                {
-                    Zones = saveList
-                };
-
-                string xml = MyAPIGateway.Utilities.SerializeToXML(storage);
+                string xml = MyAPIGateway.Utilities.SerializeToXML(saveList);
                 if (string.IsNullOrWhiteSpace(xml))
-                    throw new Exception("SerializeToXML returned empty XML for zone config storage");
+                    throw new Exception("SerializeToXML returned empty XML for zone config list");
 
                 PersistenceDebugLog($"SaveConfig xml length: {xml.Length}");
 

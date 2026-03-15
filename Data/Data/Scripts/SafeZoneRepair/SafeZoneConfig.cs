@@ -13,16 +13,6 @@ namespace SafeZoneRepair
         public float Multiplier { get; set; } = 1f;
     }
 
-
-    /// <summary>
-    /// XML-обёртка для списка конфигов зон. Нужна потому, что SerializeToXML(List<T>)
-    /// в окружении Space Engineers нестабилен как корневой тип.
-    /// </summary>
-    public class SafeZoneConfigCollection
-    {
-        public List<SafeZoneConfig> Zones { get; set; } = new List<SafeZoneConfig>();
-    }
-
     /// <summary>
     /// Конфигурация отдельной безопасной зоны.
     /// </summary>
