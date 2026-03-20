@@ -3196,9 +3196,16 @@ namespace SafeZoneRepair
                 if (ahead <= 0)
                 {
                     if (queuedProjected)
+                    {
+                        IMySlimBlock overlapBlock;
+                        bool sameBlock;
+                        if (HasProjectedOverlap(queuedBlock, queuedInfo.SourceGridEntityId, out overlapBlock, out sameBlock) && sameBlock)
+                            return "Repair phase: projection welding";
+
                         return Utils.CanBuild(queuedBlock, true)
                             ? "Repair phase: projection welding"
                             : "Repair phase: projection blocked";
+                    }
 
                     if (queuedHasBuildWork && queuedHasDeformation)
                         return string.Format("Repair phase: integrity + deformation ({0:0.0}%)", queuedBlock.BuildLevelRatio * 100f);
